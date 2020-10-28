@@ -11,12 +11,11 @@
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 
-#define ReLU_BACKWARD(x) x > 0
 #define EPSILON 0.0001
 
 
 
-static float _CONV(float *input, float *w, int x, int y, int n, int img_size)
+static float __CONV__(float *input, float *w, int x, int y, int n, int img_size)
 {
     /**
      *  input   data matrix
@@ -58,6 +57,11 @@ static float _CONV(float *input, float *w, int x, int y, int n, int img_size)
 
 void nonlinear_forward(float *x, int units)
 {
+    /**
+     * forward of ReLU activation
+     * 
+     * method: replace
+     * */
     for (int i = 0; i < units; i++)
     {
         x[i] = x[i]>0?x[i]:0;
@@ -67,9 +71,15 @@ void nonlinear_forward(float *x, int units)
 
 void nonlinear_backward(float *x, int units)
 {
+    /**
+     * backward of ReLU activation
+     * 
+     * method: replace
+     * */
+
     for (int i = 0; i < units; i++)
     {
-        *(x + i) = ReLU_BACKWARD(*(x + i));
+        x[i] = (x[i]>0);
     }
 }
 
@@ -116,7 +126,8 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
                          *   output[c][cur_w][cur_h]
                          * */
 
-                        output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += _CONV(input, weights, x, y, kernel_size, w);
+                        output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += 
+                                                                        __CONV__(input, weights, x, y, kernel_size, w);
                     }
                     output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += bias[out_c];
 
@@ -761,6 +772,7 @@ void train(Alexnet *alexnet)
 
 
 }
+
 
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
