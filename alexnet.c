@@ -16,23 +16,41 @@
 
 
 
-static float _CONV(float *x, float *y, int n, int img_width)
+static float _CONV(float *input, float *w, int x, int y, int n, int img_size)
 {
     /**
-     *  x   beggining pointer of input
-     *  y   beginning pointer of filter
-     *  n   the width of filter
+     *  input   data matrix
+     *  w       weights of filter
+     *  x, y    index of 'input'
+     *  n       the width of filter
      **/
+
     float res = 0;
     int x_shift = 0;
-    for (int p = 0; p < n * n; p++)
+    for(short x_shift=0; x_shift<n; x_shift++)
     {
-        if (p % n == n - 1)
+        if(x+x_shift<0) // padding areas
         {
-            x_shift += img_width;
+            continue;
         }
-        res += (*(x + x_shift)) * (*(y + p));
-        x_shift++;
+        if(x+x_shift>=img_size)
+        {
+            break;
+        }
+
+        for(short y_shift=0; y_shift<n; y_shift++)
+        {
+            if(y+y_shift<0) // padding areas
+            {
+                continue;
+            }
+            if(y+y_shift>=img_size)
+            {
+                break;
+            }
+    
+            res += input[(x+x_shift)*img_size+(y+y_shift)] * w[x_shift*n+y_shift];
+        }
     }
     return res;
 }
@@ -63,17 +81,23 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
      * Conv2D forward
      * */
 
-    int out_w, out_h;
-    int cur_w, cur_h;
+    int out_w, out_h, cur_w, cur_h;
+    out_w = ceil(1.0 * (w+2*padding) / strides); 
+    out_h = ceil(1.0 * (h+2*padding) / strides);
     for(int p=0; p<BATCH_SIZE; p++)
     {
-        for (int x = 0 - padding; x < w + padding; x += strides)
+        for (int out_c = 0; out_c < out_channels; out_c++)
         {
-            for (int y = 0 - padding; y < h + padding; y += strides)
+            cur_w = 0; 
+            for (int x = 0 - padding; x < w + padding; x += strides)
             {
-                for (int out_c = 0; out_c < out_channels; out_c++)
+                cur_h = 0;
+                for (int y = 0 - padding; y < h + padding; y += strides)
                 {
-                    // compute output[out_c][out_w][out_h]
+                    //printf("cur_w is %d;  cur_h is %d\n", cur_w, cur_h);
+                
+                    // output[out_c][cur_w][cur_h]
+                    
                     for (int c = 0; c < in_channels; c++)
                     {
                         /**
@@ -89,13 +113,18 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
                          *          ||
                          *          V
                          * 
-                         *   output[c][x][y]
+                         *   output[c][cur_w][cur_h]
                          * */
-                        output[p*out_channels*out_w*out_h + out_c * out_w * out_h + out_w * cur_h] += 
-                                    _CONV(input + p*in_channels*w*h + c * w * h + x * h + y, weights + out_c * out_channels + c, kernel_size, w);
+
+                        output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += _CONV(input, weights, x, y, kernel_size, w);
                     }
-                    output[p*out_channels*out_w*out_h + out_c * out_w * out_h + out_w * cur_h] += bias[out_c];
+                    output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += bias[out_c];
+
+                    printf("%.2f \n", x, y, output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h]);
+                
+                    cur_h++;
                 }
+                cur_w++;
             }
         }
     }
@@ -180,15 +209,15 @@ void max_pooling_forward(float *input, float *output, int channels, int in_lengt
     int o_x, o_y, o_length = in_length / strides;
     float pixel;
 
-    for(int p=0; p<BATCH_SIZE; p++)
+    for (int p=0; p<BATCH_SIZE; p++)
     {
-        for(int c = 0; c < channels; c++)
+        for (int c = 0; c < channels; c++)
         {
             o_x=0;
-            for(int i = 0; i < in_length-strides+1; i += strides)
+            for (int i = 0; i < in_length-strides+1; i += strides)
             {
                 o_y=0;
-                for(int j = 0; j < in_length-strides+1; j += strides)
+                for (int j = 0; j < in_length-strides+1; j += strides)
                 {
                     /**
                      * inputs[i ~ i+pool_size][j ~ j+pool_size]
@@ -196,9 +225,9 @@ void max_pooling_forward(float *input, float *output, int channels, int in_lengt
                      * */
 
                     pixel = input[p*channels*in_length*in_length+c*in_length*in_length+i*in_length+j];
-                    for(int fx=i; fx<MIN(i+pool_size,in_length); fx++)
+                    for (int fx=i; fx<MIN(i+pool_size,in_length); fx++)
                     {
-                        for(int fy=j; fy<MIN(j+pool_size,in_length); fy++)
+                        for (int fy=j; fy<MIN(j+pool_size,in_length); fy++)
                         {                        
                             pixel = MAX(pixel, input[p*channels*in_length*in_length+c*in_length*in_length+fx*in_length+fy]);
                         }
@@ -250,7 +279,7 @@ void fc_forward(float *input, float *out, float *weights, float *bias, int in_un
      * bias     (out_units)
      * */
 
-    for(int p=0; p<BATCH_SIZE; p++)
+    for (int p=0; p<BATCH_SIZE; p++)
     {
         for (int i = 0; i < in_units; i++)
         {
@@ -319,12 +348,13 @@ void batch_normalization_forward(float *input, float *output, float gamma, float
      * */
 
     float *var = (float *)malloc(sizeof(float) * (units + 1));
-    if(var == NULL)
+    if (var == NULL)
     {
         printf("Can't allocate more memory!!!\n");
         exit(0);
     }
     
+    // calculate average for each unit along batch axis
     for (int i = 0; i < units; i++)
     {
         avg[i] = 0;
@@ -335,6 +365,7 @@ void batch_normalization_forward(float *input, float *output, float gamma, float
         avg[i] /= BATCH_SIZE;
     }
 
+    // calculate variance for each unit along batch axis
     for (int i = 0; i < units; i++)
     {
         var[i] = 0;
@@ -342,14 +373,13 @@ void batch_normalization_forward(float *input, float *output, float gamma, float
         {
             var[i] += (input[p*units + i] - avg[i]) * (input[p*units + i] - avg[i]);
         }
-        var[i] /= BATCH_SIZE;
     }
 
     for (int i = 0; i < units; i++)
     {
         for (int p = 0; p < BATCH_SIZE; p++)
         {
-            output[p*units + i] = gamma * (input[p*units + i] - avg[p]) / sqrt(var[i] + EPSILON) + beta;
+            output[p*units + i] = gamma * (input[p*units + i] - avg[i]) / sqrt(var[i] + EPSILON) + beta;
         }
     }
 
@@ -379,12 +409,12 @@ void softmax_forward(float *input, float *output, int units)
     /**
      * softmax layer forward
      * 
-     * input    (units)
-     * output   (units)
+     * input    (BATCH_SIZE, units)
+     * output   (BATCH_SIZE, units)
      * */
 
     float sum;
-    for(int p=0; p<BATCH_SIZE; p++)
+    for (int p=0; p<BATCH_SIZE; p++)
     {
         sum = 0;
         for (int i = 0; i < units; i++)
