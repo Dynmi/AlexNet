@@ -8,9 +8,13 @@
 #include <math.h>
 #include "alexnet.h"
 
-#define ReLU(x) x *(x > 0)
+#define MAX(a,b) (((a) > (b)) ? (a) : (b))
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
+
 #define ReLU_BACKWARD(x) x > 0
 #define EPSILON 0.0001
+
+
 
 static float _CONV(float *x, float *y, int n, int img_width)
 {
@@ -34,33 +38,17 @@ static float _CONV(float *x, float *y, int n, int img_width)
 }
 
 
-static float inline MAX_POOLING(float *x, int pool_size, int ori_size)
+void nonlinear_forward(float *x, int units)
 {
-    float _max;
-    for (int i = 0; i < pool_size; i++)
-    {
-        for (int j = 0; j < pool_size; j++)
-        {
-            _max = max(_max, *(x + i + j * ori_size));
-        }
-    }
-    return _max;
-}
-
-
-void nonlinear_forward(float *x)
-{
-    short units = sizeof(x) / sizeof(*x);
     for (int i = 0; i < units; i++)
     {
-        *(x + i) = ReLU(*(x + i));
+        x[i] = x[i]>0?x[i]:0;
     }
 }
 
 
-void nonlinear_backward(float *x)
+void nonlinear_backward(float *x, int units)
 {
-    short units = sizeof(x) / sizeof(*x);
     for (int i = 0; i < units; i++)
     {
         *(x + i) = ReLU_BACKWARD(*(x + i));
@@ -189,19 +177,33 @@ void max_pooling_forward(float *input, float *output, int channels, int in_lengt
      * max pooling forward for multi-channel image
      * */
 
-    int o_x = 0, o_y = 0,
-        o_length = in_length / strides;
+    int o_x, o_y, o_length = in_length / strides;
+    float pixel;
 
     for(int p=0; p<BATCH_SIZE; p++)
     {
-        for (int c = 0; c < channels; c++)
+        for(int c = 0; c < channels; c++)
         {
-            for (int i = 0; i < in_length; i += strides)
+            o_x=0;
+            for(int i = 0; i < in_length-strides+1; i += strides)
             {
-                for (int j = 0; j < in_length; j += strides)
+                o_y=0;
+                for(int j = 0; j < in_length-strides+1; j += strides)
                 {
-                    output[p*channels*in_length*in_length + c*in_length*in_length + o_x + o_y*o_length] =
-                        MAX_POOLING(input + p*channels*in_length*in_length + c*in_length*in_length + i + j*in_length, pool_size, in_length);
+                    /**
+                     * inputs[i ~ i+pool_size][j ~ j+pool_size]
+                     * outputs[o_x][o_j]
+                     * */
+
+                    pixel = input[p*channels*in_length*in_length+c*in_length*in_length+i*in_length+j];
+                    for(int fx=i; fx<MIN(i+pool_size,in_length); fx++)
+                    {
+                        for(int fy=j; fy<MIN(j+pool_size,in_length); fy++)
+                        {                        
+                            pixel = MAX(pixel, input[p*channels*in_length*in_length+c*in_length*in_length+fx*in_length+fy]);
+                        }
+                    }
+                    output[p*channels*o_length*o_length + c*o_length*o_length + o_x + o_y*o_length] = pixel;
                     o_y++;
                 }
                 o_x++;
@@ -224,9 +226,9 @@ void max_pooling_backward(int channels, int pool_size, int in_length, float *in_
     {
         for (int j = 0; j < out_length; j++)
         {
-            for (int x = i * pool_size; x < min((i + 1) * pool_size, in_length); i++)
+            for (int x = i * pool_size; x < MIN((i + 1) * pool_size, in_length); i++)
             {
-                for (int y = j * pool_size; y < min((j + 1) * pool_size, in_length); y++)
+                for (int y = j * pool_size; y < MIN((j + 1) * pool_size, in_length); y++)
                 {
                     *(in_error + channels * in_length * in_length + y * in_length + x) = *(out_error + j * out_length + i);
                 }
@@ -236,15 +238,12 @@ void max_pooling_backward(int channels, int pool_size, int in_length, float *in_
 }
 
 
-void fc_forward(float *input, float *out, float *weights, float *bias)
+void fc_forward(float *input, float *out, float *weights, float *bias, int in_units, int out_units)
 {
     /**
      * fully connected layer forward
-     * */
-
-    short in_units = sizeof(input) / sizeof(*input) / BATCH_SIZE,
-          out_units = sizeof(out) / sizeof(*out) / BATCH_SIZE;
-    /**
+     * 
+     * 
      * input    (BATCH_SIZE, in_units)
      * out      (BATCH_SIZE, out_units)
      * weights  (in_units, out_units)
@@ -270,15 +269,11 @@ void fc_forward(float *input, float *out, float *weights, float *bias)
 
 
 void fc_backward(float *input, float *weights, float *in_error, float *out_error,
-                 float *w_deltas, float *b_deltas)
+                 float *w_deltas, float *b_deltas, int in_units, int out_units)
 {
     /**
      * fully connected layer backward
-     * */
-
-    short in_units = sizeof(input) / sizeof(*input) / BATCH_SIZE,
-          out_units = sizeof(out_error) / sizeof(*out_error) / BATCH_SIZE;
-    /**
+     *
      *      IN
      * input
      * weights
@@ -313,15 +308,12 @@ void fc_backward(float *input, float *weights, float *in_error, float *out_error
 }
 
 
-void batch_normalization_forward(float *input, float *output, float gamma, float beta, float *avg)
+void batch_normalization_forward(float *input, float *output, float gamma, float beta, float *avg, int units)
 {
     /**
      * batch normalization forward
-     * */
-
-    short units = sizeof(input) / sizeof(*input) / BATCH_SIZE;
-
-    /**
+     * 
+     * 
      * input    (BATCH_SIZE, units)
      * output   (BATCH_SIZE, units)
      * */
@@ -366,13 +358,12 @@ void batch_normalization_forward(float *input, float *output, float gamma, float
 
 
 void batch_normalization_backward(float *in_error, float *out_error, float delta_gamma,
-                                  float delta_beta, float *avg, float gamma)
+                                  float delta_beta, float *avg, float gamma, int units)
 {
     /**
      * batch normalization backward
      * */
 
-    short units = sizeof(in_error) / sizeof(*in_error);
     for (int i = 0; i < units; i++)
     {
         delta_gamma += (*(avg+i)) * (*(out_error + i));
@@ -499,38 +490,38 @@ void zero_feats(Feature *feats)
 void net_forward(Alexnet *alexnet, Feature *feats)
 {
     conv_forward(feats->input, alexnet->C1_weights, alexnet->C1_bias, feats->C1, IN_CHANNELS, C1_CHANNELS, C1_KERNEL_L, 4, C1_STRIDES, FEATURE0_L, FEATURE0_L);
-    batch_normalization_forward(feats->C1, feats->BN1, alexnet->BN1_gamma, alexnet->BN1_b, alexnet->BN1_avg);
-    nonlinear_forward(feats->BN1);
+    batch_normalization_forward(feats->C1, feats->BN1, alexnet->BN1_gamma, alexnet->BN1_b, alexnet->BN1_avg, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
+    nonlinear_forward(feats->BN1, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
 
     max_pooling_forward(feats->BN1, feats->P1, C1_CHANNELS, FEATURE1_L, 2, 3);
 
     conv_forward(feats->P1, alexnet->C2_weights, alexnet->C2_bias, feats->C2, C1_CHANNELS, C2_CHANNELS, C2_KERNEL_L, 1, C2_STRIDES, FEATURE1_L, FEATURE1_L);
-    batch_normalization_forward(feats->C2, feats->BN2, alexnet->BN2_gamma, alexnet->BN2_b, alexnet->BN2_avg);
-    nonlinear_forward(feats->BN2);
+    batch_normalization_forward(feats->C2, feats->BN2, alexnet->BN2_gamma, alexnet->BN2_b, alexnet->BN2_avg, C2_CHANNELS*FEATURE2_L*FEATURE2_L);
+    nonlinear_forward(feats->BN2, C2_CHANNELS*FEATURE2_L*FEATURE2_L);
 
     max_pooling_forward(feats->BN2, feats->P2, C2_CHANNELS, FEATURE2_L, 2, 3);
 
     conv_forward(feats->P2, alexnet->C3_weights, alexnet->C3_bias, feats->C3, C2_CHANNELS, C3_CHANNELS, C3_KERNEL_L, 1, C3_STRIDES, FEATURE2_L, FEATURE2_L);
-    batch_normalization_forward(feats->C3, feats->BN3, alexnet->BN3_gamma, alexnet->BN3_b, alexnet->BN3_avg);
-    nonlinear_forward(feats->BN3);
+    batch_normalization_forward(feats->C3, feats->BN3, alexnet->BN3_gamma, alexnet->BN3_b, alexnet->BN3_avg, C3_CHANNELS*FEATURE3_L*FEATURE3_L);
+    nonlinear_forward(feats->BN3, C3_CHANNELS*FEATURE3_L*FEATURE3_L);
 
     conv_forward(feats->BN3, alexnet->C4_weights, alexnet->C4_bias, feats->C4, C3_CHANNELS, C4_CHANNELS, C4_KERNEL_L, 1, C4_STRIDES, FEATURE3_L, FEATURE4_L);
-    batch_normalization_forward(feats->C4, feats->BN4, alexnet->BN4_gamma, alexnet->BN4_b, alexnet->BN4_avg);
-    nonlinear_forward(feats->BN4);
+    batch_normalization_forward(feats->C4, feats->BN4, alexnet->BN4_gamma, alexnet->BN4_b, alexnet->BN4_avg, C4_CHANNELS*FEATURE4_L*FEATURE4_L);
+    nonlinear_forward(feats->BN4, C4_CHANNELS*FEATURE4_L*FEATURE4_L);
 
     conv_forward(feats->BN4, alexnet->C5_weights, alexnet->C5_bias, feats->C5, C4_CHANNELS, C5_CHANNELS, C5_KERNEL_L, 1, C5_STRIDES, FEATURE4_L, FEATURE4_L);
-    batch_normalization_forward(feats->C5, feats->BN5, alexnet->BN5_gamma, alexnet->BN5_b, alexnet->BN5_avg);
-    nonlinear_forward(feats->BN5);
+    batch_normalization_forward(feats->C5, feats->BN5, alexnet->BN5_gamma, alexnet->BN5_b, alexnet->BN5_avg, C5_CHANNELS*FEATURE5_L*FEATURE5_L);
+    nonlinear_forward(feats->BN5, C5_CHANNELS*FEATURE5_L*FEATURE5_L);
 
     max_pooling_forward(feats->BN5, feats->P5, C5_CHANNELS, FEATURE5_L, 2, 3);
 
-    fc_forward(feats->P5, feats->FC6, alexnet->FC6weights, alexnet->FC6bias);
-    nonlinear_forward(feats->FC6);
+    fc_forward(feats->P5, feats->FC6, alexnet->FC6weights, alexnet->FC6bias, FC6KERNEL_L*C5_CHANNELS*C5_CHANNELS, FC6_LAYER);
+    nonlinear_forward(feats->FC6, FC6_LAYER);
 
-    fc_forward(feats->FC6, feats->FC7, alexnet->FC7weights, alexnet->FC7bias);
-    nonlinear_forward(feats->FC7);
+    fc_forward(feats->FC6, feats->FC7, alexnet->FC7weights, alexnet->FC7bias, FC6_LAYER, FC7_LAYER);
+    nonlinear_forward(feats->FC7, FC7_LAYER);
 
-    softmax(feats->FC7, feats->output, OUT_LAYER);
+    softmax_forward(feats->FC7, feats->output, OUT_LAYER);
 }
 
 
@@ -648,40 +639,40 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
 
     softmax_backward(error->output, error->FC7, OUT_LAYER);
 
-    nonlinear_backward(error->FC7);
-    fc_backward(feats->FC7, alexnet->FC7weights, error->FC6, error->FC7, deltas->FC7weights, deltas->FC7bias);
+    nonlinear_backward(error->FC7, FC7_LAYER);
+    fc_backward(feats->FC7, alexnet->FC7weights, error->FC6, error->FC7, deltas->FC7weights, deltas->FC7bias, FC6_LAYER, FC7_LAYER);
 
-    nonlinear_backward(error->FC6);
-    fc_backward(feats->FC6, alexnet->FC6weights, error->P5, error->FC6, deltas->FC6weights, deltas->FC6bias);
+    nonlinear_backward(error->FC6, FC6_LAYER);
+    fc_backward(feats->FC6, alexnet->FC6weights, error->P5, error->FC6, deltas->FC6weights, deltas->FC6bias, FC6KERNEL_L*C5_CHANNELS*C5_CHANNELS, FC6_LAYER);
 
     max_pooling_backward(C5_CHANNELS, 3, FEATURE5_L, error->BN5, error->P5);
 
-    nonlinear_backward(error->BN5);
-    batch_normalization_backward(error->C5, error->BN5, deltas->BN5_gamma, deltas->BN5_b, alexnet->BN5_avg, alexnet->BN5_gamma);
+    nonlinear_backward(error->BN5, C5_CHANNELS*FEATURE5_L*FEATURE5_L);
+    batch_normalization_backward(error->C5, error->BN5, deltas->BN5_gamma, deltas->BN5_b, alexnet->BN5_avg, alexnet->BN5_gamma, C5_CHANNELS*FEATURE5_L*FEATURE5_L);
     conv_backward(error->BN4, error->C5, feats->C5, alexnet->C5_weights, deltas->C5_weights, deltas->C5_bias, 
                     C4_CHANNELS, C5_CHANNELS, FEATURE5_L, FEATURE5_L, 1, C5_KERNEL_L, 1);
 
-    nonlinear_backward(error->BN4);
-    batch_normalization_backward(error->C4, error->BN4, deltas->BN4_gamma, deltas->BN4_b, alexnet->BN4_avg, alexnet->BN4_gamma);
+    nonlinear_backward(error->BN4, C4_CHANNELS*FEATURE4_L*FEATURE4_L);
+    batch_normalization_backward(error->C4, error->BN4, deltas->BN4_gamma, deltas->BN4_b, alexnet->BN4_avg, alexnet->BN4_gamma, C4_CHANNELS*FEATURE4_L*FEATURE4_L);
     conv_backward(error->BN3, error->C4, feats->C4, alexnet->C4_weights, deltas->C4_weights, deltas->C4_bias, 
                     C3_CHANNELS, C4_CHANNELS, FEATURE4_L, FEATURE4_L, 1, C4_KERNEL_L, 1);
 
-    nonlinear_backward(error->BN3);
-    batch_normalization_backward(error->C3, error->BN3, deltas->BN3_gamma, deltas->BN3_b, alexnet->BN3_avg, alexnet->BN3_gamma);
+    nonlinear_backward(error->BN3, C3_CHANNELS*FEATURE3_L*FEATURE3_L);
+    batch_normalization_backward(error->C3, error->BN3, deltas->BN3_gamma, deltas->BN3_b, alexnet->BN3_avg, alexnet->BN3_gamma, C3_CHANNELS*FEATURE3_L*FEATURE3_L);
     conv_backward(error->P2, error->C3, feats->C3, alexnet->C3_weights, deltas->C3_weights, deltas->C3_bias, 
                     C2_CHANNELS, C3_CHANNELS, FEATURE3_L, FEATURE3_L, 1, C3_KERNEL_L, 1);
 
     max_pooling_backward(C2_CHANNELS, 3, FEATURE2_L, error->BN2, error->P2);
 
-    nonlinear_backward(error->BN2);
-    batch_normalization_backward(error->C2, error->BN2, deltas->BN2_gamma, deltas->BN2_b, alexnet->BN2_avg, alexnet->BN2_gamma);
+    nonlinear_backward(error->BN2, C2_CHANNELS*FEATURE2_L*FEATURE2_L);
+    batch_normalization_backward(error->C2, error->BN2, deltas->BN2_gamma, deltas->BN2_b, alexnet->BN2_avg, alexnet->BN2_gamma, C2_CHANNELS*FEATURE2_L*FEATURE2_L);
     conv_backward(error->P1, error->C2, feats->C2, alexnet->C2_weights, deltas->C2_weights, deltas->C2_bias, 
                     C1_CHANNELS, C2_CHANNELS, FEATURE2_L, FEATURE2_L, 1, C2_KERNEL_L, 1);
 
     max_pooling_backward(C1_CHANNELS, 3, FEATURE1_L, error->BN1, error->P1);
 
-    nonlinear_backward(error->BN1);
-    batch_normalization_backward(error->C1, error->BN1, deltas->BN1_gamma, deltas->BN1_b, alexnet->BN1_avg, alexnet->BN1_gamma);
+    nonlinear_backward(error->BN1, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
+    batch_normalization_backward(error->C1, error->BN1, deltas->BN1_gamma, deltas->BN1_b, alexnet->BN1_avg, alexnet->BN1_gamma, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     conv_backward(error->input, error->C1, feats->C1, alexnet->C1_weights, deltas->C1_weights, deltas->C1_bias, 
                     IN_CHANNELS, C1_CHANNELS, FEATURE1_L, FEATURE1_L, 4, C1_KERNEL_L, 0);
 

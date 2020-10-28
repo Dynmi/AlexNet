@@ -95,3 +95,34 @@ typedef struct Feature{
 	float output[BATCH_SIZE][OUT_LAYER];
 
 }Feature;
+
+
+
+void nonlinear_forward(float *x, int units);
+
+void nonlinear_backward(float *x, int units);
+
+void conv_forward(float *input, float *weights, float *bias, float *output, 
+                int in_channels, int out_channels, int kernel_size, int padding, int strides, int w, int h);
+
+void conv_backward(float *in_error, float *out_error, float *input, float *weights,
+                   float *w_deltas, float *b_deltas, int in_channels, int out_channels,
+                   int w, int h, int padding, int kernel_size, int strides);
+
+void max_pooling_forward(float *input, float *output, int channels, int in_length, int strides, int pool_size);
+
+void max_pooling_backward(int channels, int pool_size, int in_length, float *in_error, float *out_error);
+
+void fc_forward(float *input, float *out, float *weights, float *bias, int in_units, int out_units);
+
+void fc_backward(float *input, float *weights, float *in_error, float *out_error,
+                 float *w_deltas, float *b_deltas, int in_units, int out_units);
+
+void batch_normalization_forward(float *input, float *output, float gamma, float beta, float *avg, int units);
+
+void batch_normalization_backward(float *in_error, float *out_error, float delta_gamma,
+                                  float delta_beta, float *avg, float gamma, int units);
+
+void softmax_forward(float *input, float *output, int units);
+
+void softmax_backward(float *in_error, float *out_error, int units);
