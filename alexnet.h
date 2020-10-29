@@ -24,7 +24,7 @@
 #define C4_STRIDES 1
 #define C5_STRIDES 1
 
-#define FEATURE0_L 227
+#define FEATURE0_L 117
 #define FEATURE1_L 57
 #define FEATURE2_L 28
 #define FEATURE3_L 13
@@ -58,11 +58,11 @@ typedef struct Alexnet{
     float BN4_gamma, BN4_b;
     float BN5_gamma, BN5_b;
 
-    float   BN1_avg[C1_CHANNELS*FEATURE1_L*FEATURE1_L],
-            BN2_avg[C2_CHANNELS*FEATURE2_L*FEATURE2_L],
-            BN3_avg[C3_CHANNELS*FEATURE3_L*FEATURE3_L],
-            BN4_avg[C4_CHANNELS*FEATURE4_L*FEATURE4_L],
-            BN5_avg[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
+    float   BN1_avg[C1_CHANNELS*FEATURE1_L*FEATURE1_L], BN1_var[C1_CHANNELS*FEATURE1_L*FEATURE1_L],
+            BN2_avg[C2_CHANNELS*FEATURE2_L*FEATURE2_L], BN2_var[C2_CHANNELS*FEATURE2_L*FEATURE2_L],
+            BN3_avg[C3_CHANNELS*FEATURE3_L*FEATURE3_L], BN3_var[C3_CHANNELS*FEATURE3_L*FEATURE3_L],
+            BN4_avg[C4_CHANNELS*FEATURE4_L*FEATURE4_L], BN4_var[C4_CHANNELS*FEATURE4_L*FEATURE4_L],
+            BN5_avg[C5_CHANNELS*FEATURE5_L*FEATURE5_L], BN5_var[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
             
 }Alexnet;
 
@@ -111,17 +111,18 @@ void conv_backward(float *in_error, float *out_error, float *input, float *weigh
 
 void max_pooling_forward(float *input, float *output, int channels, int in_length, int strides, int pool_size);
 
-void max_pooling_backward(int channels, int pool_size, int in_length, float *in_error, float *out_error);
+void max_pooling_backward(int channels, int pool_size, int in_length, float *in_error, float *out_error, float *input);
 
 void fc_forward(float *input, float *out, float *weights, float *bias, int in_units, int out_units);
 
 void fc_backward(float *input, float *weights, float *in_error, float *out_error,
                  float *w_deltas, float *b_deltas, int in_units, int out_units);
 
-void batch_normalization_forward(float *input, float *output, float gamma, float beta, float *avg, int units);
+void batch_normalization_forward(float *input, float *output, float gamma, float beta, float *avg, float *var, int units);
 
-void batch_normalization_backward(float *in_error, float *out_error, float delta_gamma,
-                                  float delta_beta, float *avg, float gamma, int units);
+void batch_normalization_backward(float *in_error, float *out_error, 
+                                    float *delta_gamma, float *delta_beta, 
+                                        float *avg, float *var, float gamma, int units);
 
 void softmax_forward(float *input, float *output, int units);
 
