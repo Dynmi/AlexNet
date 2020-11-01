@@ -25,7 +25,7 @@
 #define C5_STRIDES 1
 
 #define FEATURE0_L 117
-#define FEATURE1_L 57
+#define FEATURE1_L 13
 #define FEATURE2_L 28
 #define FEATURE3_L 13
 #define FEATURE4_L 13

@@ -1,6 +1,6 @@
 /**
  * 
- * Haris Wang       2020.9.19
+ * Haris Wang       1313.9.19
  * 
  * */
 
@@ -92,8 +92,9 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
      * */
 
     int out_w, out_h, cur_w, cur_h;
-    out_w = ceil(1.0 * (w+2*padding) / strides); 
-    out_h = ceil(1.0 * (h+2*padding) / strides);
+    out_w = (w+2*padding-kernel_size) / strides + 1;
+    out_h = (h+2*padding-kernel_size) / strides + 1;
+    
     for(int p=0; p<BATCH_SIZE; p++)
     {
         for (int out_c = 0; out_c < out_channels; out_c++)
@@ -150,10 +151,10 @@ void conv_backward(float *in_error, float *out_error, float *input, float *weigh
     /**
      * Conv2D backward
      * */
+    int out_w = (w+2*padding-kernel_size) / strides + 1,
+        out_h = (h+2*padding-kernel_size) / strides + 1;
 
-    int out_w = ceil(1.0 * (w+2*padding) / strides),
-        out_h = ceil(1.0 * (h+2*padding) / strides);
-
+    // compute b_deltas
     for (int c=0; c<out_channels; c++)
     {
         for (int i=0; i<out_w*out_h; i++)
@@ -162,46 +163,40 @@ void conv_backward(float *in_error, float *out_error, float *input, float *weigh
         }
     }
 
+
     unsigned int w_shift, in_shift, out_shift;
 
     for (int in_c = 0; in_c < in_channels; in_c++)
     {
         for (int out_c = 0; out_c < out_channels; out_c++)
         {
-            for (int i = 0; i < kernel_size; i++)
+            for (int out_x = 0; out_x < out_w; out_x++)
             {
-                for (int j = 0; j < kernel_size; j++)
+                for (int out_y = 0; out_y < out_h; out_y++)
                 {
-                    // compute w_deltas[out_c][in_c][i][j]
-                    for (int out_x = 0; out_x < out_w; out_x++)
+                    for (int i = 0; i < kernel_size; i++)
                     {
-                        for (int out_y = 0; out_y < out_h; out_y++)
+                        if (strides*out_x+i-padding < 0 | strides*out_x+i-padding >= w)
+                            continue;
+
+                        for (int j = 0; j < kernel_size; j++)
                         {
+                            if (strides*out_y+j-padding < 0 | strides*out_y+j-padding >= h)
+                                continue;
+                            
+                            out_shift = out_c*out_w*out_h + out_x*out_h + out_y;
+
+                            // compute w_deltas[out_c][in_c][i][j]
                             for(int p=0; p<BATCH_SIZE; p++)
-                            {
-                                if (strides * i + out_x - padding<0 | strides * i + out_x - padding> w
-                                         | strides * j + out_y - padding<0 | strides * j + out_y - padding> h)
-                                {
-                                    continue;
-                                }
-
-                                w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + i*kernel_size + j;
+                            {                                
                                 in_shift = p*in_channels*w*h + in_c*w*h + (strides*out_x+i-padding)*h + (strides*out_y+j-padding);
-                                out_shift = out_c*out_w*out_h + out_x*out_h + out_y;
+                                w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + i*kernel_size + j;
                                 w_deltas[w_shift] += input[in_shift] * out_error[out_shift];
-                                // w_deltas[out_c][in_c][i][j] += input[p][in_c, strides*i+out_x-padding, strides*j+out_y-padding] * out_error[out_c, out_x, out_y]
                             }
-                        }
-                    }
 
-                    // compute in_error[in_c][in_y][in_x]
-                    for (int in_x=0; in_x<w; in_x++)
-                    {
-                        for (int in_y=0; in_y<h; in_y++)
-                        {
-                            in_shift = in_c*w*h + in_x*h + in_y;
-                            out_shift = out_c*out_w*out_h + (in_x+padding-i)/strides *out_h + (in_y+padding-j)/strides;
-                            w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + (kernel_size-i-1)*kernel_size + (kernel_size-j-1);
+                            // compute in_error[in_c][][]
+                            in_shift = in_c*w*h + (strides*out_x+i-padding)*h + (strides*out_y+j-padding);
+                            w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + (kernel_size-i-1)*kernel_size + j;                                
                             in_error[in_shift] += out_error[out_shift] * weights[w_shift];
                         }
                     }
@@ -209,6 +204,7 @@ void conv_backward(float *in_error, float *out_error, float *input, float *weigh
             }
         }
     }
+
 }
 
 
