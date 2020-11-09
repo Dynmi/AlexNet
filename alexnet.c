@@ -527,6 +527,38 @@ void zero_grads(Alexnet *grads)
 }
 
 
+void param_init(Alexnet *net)
+{
+    memset(net->C1_weights, 0, 4);
+    memset(net->C2_weights, 0, 4);
+    memset(net->C3_weights, 0, 4);
+    memset(net->C4_weights, 0, 4);
+    memset(net->C5_weights, 0, 4);
+    memset(net->FC6weights, 0, 4);
+    memset(net->FC7weights, 0, 4);
+    memset(net->OUTweights, 0, 4);
+
+    memset(net->C1_bias, 0, 4);
+    memset(net->C2_bias, 0, 4);
+    memset(net->C3_bias, 0, 4);
+    memset(net->C4_bias, 0, 4);
+    memset(net->C5_bias, 0, 4);
+    memset(net->FC6bias, 0, 4);
+    memset(net->FC7bias, 0, 4);
+
+    net->BN1_gamma = 0;
+    net->BN2_gamma = 0;
+    net->BN3_gamma = 0;
+    net->BN4_gamma = 0;
+    net->BN5_gamma = 0;
+    net->BN1_b = 0;
+    net->BN2_b = 0;
+    net->BN3_b = 0;
+    net->BN4_b = 0;
+    net->BN5_b = 0;
+};
+
+
 void zero_feats(Feature *feats)
 {
     memset(feats->input, 0, 4);

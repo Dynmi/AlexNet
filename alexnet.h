@@ -97,6 +97,8 @@ typedef struct Feature{
 }Feature;
 
 
+void zero_feats(Feature *feats);
+
 
 void nonlinear_forward(float *x, int units);
 
@@ -127,3 +129,12 @@ void batch_normalization_backward(float *in_error, float *out_error,
 void softmax_forward(float *input, float *output, int units);
 
 void softmax_backward(float *in_error, float *out_error, int units);
+
+
+
+void net_forward(Alexnet *alexnet, Feature *feats);
+void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *feats, float lr);
+
+
+void predict(Alexnet *alexnet, float *inputs, float *outputs);
+void train(Alexnet *alexnet);
