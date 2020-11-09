@@ -4,8 +4,15 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 ## Todo List
 
+- **parameters initilization**
+
+- **net_backward & net_forward testing**
+
 - **Raw Data Preprocess**
 
 - **Metrics for evaluation**
 
-- [all finished] **Unit Testing** 
+- **Full test**
+
+- **Unit Testing** [all finished] 
+
