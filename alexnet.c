@@ -132,7 +132,7 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
                     }
                     output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h] += bias[out_c];
 
-                    printf("%.2f \n", x, y, output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h]);
+                    // printf("%.2f \n", x, y, output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h]);
                 
                     cur_h++;
                 }
