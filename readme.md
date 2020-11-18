@@ -18,6 +18,8 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - **Moudulr & Decoupling**
  
 - **Trainer: logger, lr-scheduler**
+  
+- **Trainer: weights save/load**
 
 - **op unit Testing** [all finished] 
 
