@@ -24,12 +24,15 @@
 #define C4_STRIDES 1
 #define C5_STRIDES 1
 
-#define FEATURE0_L 117
-#define FEATURE1_L 13
+#define FEATURE0_L 227
+#define FEATURE1_L 57
+#define POOLING1_L 28
 #define FEATURE2_L 28
+#define POOLING2_L 13
 #define FEATURE3_L 13
 #define FEATURE4_L 13
 #define FEATURE5_L 13
+#define POOLING5_L 6
 
 
 #define BATCH_SIZE 4
@@ -72,11 +75,11 @@ typedef struct Feature{
 	float input[BATCH_SIZE][IN_CHANNELS][FEATURE0_L][FEATURE0_L];
 	float C1[BATCH_SIZE][C1_CHANNELS][FEATURE1_L][FEATURE1_L];
 	float BN1[BATCH_SIZE][C1_CHANNELS][FEATURE1_L][FEATURE1_L];
-	float P1[BATCH_SIZE][C1_CHANNELS][FEATURE1_L][FEATURE1_L];
+	float P1[BATCH_SIZE][C1_CHANNELS][POOLING1_L][POOLING1_L];
 
 	float C2[BATCH_SIZE][C2_CHANNELS][FEATURE2_L][FEATURE2_L];
 	float BN2[BATCH_SIZE][C2_CHANNELS][FEATURE2_L][FEATURE2_L];
-	float P2[BATCH_SIZE][C2_CHANNELS][FEATURE2_L][FEATURE2_L];
+	float P2[BATCH_SIZE][C2_CHANNELS][POOLING2_L][POOLING2_L];
 
 	float C3[BATCH_SIZE][C3_CHANNELS][FEATURE3_L][FEATURE3_L];
 	float BN3[BATCH_SIZE][C3_CHANNELS][FEATURE3_L][FEATURE3_L];
@@ -86,7 +89,7 @@ typedef struct Feature{
     
 	float C5[BATCH_SIZE][C5_CHANNELS][FEATURE5_L][FEATURE5_L];
 	float BN5[BATCH_SIZE][C5_CHANNELS][FEATURE5_L][FEATURE5_L];
-	float P5[BATCH_SIZE][C5_CHANNELS][FEATURE5_L][FEATURE5_L];
+	float P5[BATCH_SIZE][C5_CHANNELS][POOLING5_L][POOLING5_L];
 
 	float FC6[BATCH_SIZE][FC6_LAYER];
 
@@ -99,6 +102,9 @@ typedef struct Feature{
 
 void zero_feats(Feature *feats);
 
+void param_init(Alexnet *net);
+
+void zero_grads(Alexnet *grads);
 
 void nonlinear_forward(float *x, int units);
 

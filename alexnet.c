@@ -314,7 +314,6 @@ void fc_forward(float *input, float *out, float *weights, float *bias, int in_un
      * weights  (in_units, out_units)
      * bias     (out_units)
      * */
-
     for (int p=0; p<BATCH_SIZE; p++)
     {
         for (int i = 0; i < in_units; i++)
@@ -590,10 +589,11 @@ void zero_feats(Feature *feats)
 
 void net_forward(Alexnet *alexnet, Feature *feats)
 {
+
     conv_forward(feats->input, alexnet->C1_weights, alexnet->C1_bias, feats->C1, IN_CHANNELS, C1_CHANNELS, C1_KERNEL_L, 4, C1_STRIDES, FEATURE0_L, FEATURE0_L);
     batch_normalization_forward(feats->C1, feats->BN1, alexnet->BN1_gamma, alexnet->BN1_b, alexnet->BN1_avg, alexnet->BN1_var, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     nonlinear_forward(feats->BN1, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
-
+    
     max_pooling_forward(feats->BN1, feats->P1, C1_CHANNELS, FEATURE1_L, 2, 3);
 
     conv_forward(feats->P1, alexnet->C2_weights, alexnet->C2_bias, feats->C2, C1_CHANNELS, C2_CHANNELS, C2_KERNEL_L, 1, C2_STRIDES, FEATURE1_L, FEATURE1_L);
@@ -616,13 +616,14 @@ void net_forward(Alexnet *alexnet, Feature *feats)
 
     max_pooling_forward(feats->BN5, feats->P5, C5_CHANNELS, FEATURE5_L, 2, 3);
 
-    fc_forward(feats->P5, feats->FC6, alexnet->FC6weights, alexnet->FC6bias, FC6KERNEL_L*C5_CHANNELS*C5_CHANNELS, FC6_LAYER);
+    fc_forward(feats->P5, feats->FC6, alexnet->FC6weights, alexnet->FC6bias, C5_CHANNELS*POOLING5_L*POOLING5_L, FC6_LAYER);
     nonlinear_forward(feats->FC6, FC6_LAYER);
 
     fc_forward(feats->FC6, feats->FC7, alexnet->FC7weights, alexnet->FC7bias, FC6_LAYER, FC7_LAYER);
     nonlinear_forward(feats->FC7, FC7_LAYER);
 
     softmax_forward(feats->FC7, feats->output, OUT_LAYER);
+
 }
 
 
