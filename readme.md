@@ -8,12 +8,13 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 - **net_backward[finished] & net_forward testing**
 
-- **Raw Data Preprocess**
+- **Dataset: loader, sampler**
 
 - **Metrics for evaluation**
 
 - **Full test**
 
-- ** Moudulr & Decoupling **
+- **Moudulr & Decoupling**
+- **Trainer: logger, lr-scheduler**
 - **Unit Testing** [all finished] 
 
