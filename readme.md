@@ -6,7 +6,8 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 - **parameters initilization**
 
-- **net_backward[finished] & net_forward testing**
+- **net_forward testing[finished]**
+- **net_backward testing**
 
 - **Dataset: loader, sampler**
 
@@ -18,7 +19,7 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
  
 - **Trainer: logger, lr-scheduler**
 
-- **Unit Testing** [all finished] 
+- **op unit Testing** [all finished] 
 
 - **CUDA speed boosting**
 
