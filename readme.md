@@ -15,6 +15,11 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - **Full test**
 
 - **Moudulr & Decoupling**
+ 
 - **Trainer: logger, lr-scheduler**
+
 - **Unit Testing** [all finished] 
 
+- **CUDA speed boosting**
+
+- **Finally, an overall evaluation on this project**
