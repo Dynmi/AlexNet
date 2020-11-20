@@ -745,7 +745,7 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
     fc_backward(feats->FC7, alexnet->FC7weights, error->FC6, error->FC7, deltas->FC7weights, deltas->FC7bias, FC6_LAYER, FC7_LAYER);
 
     nonlinear_backward(error->FC6, FC6_LAYER);
-    fc_backward(feats->FC6, alexnet->FC6weights, error->P5, error->FC6, deltas->FC6weights, deltas->FC6bias, FC6KERNEL_L*C5_CHANNELS*C5_CHANNELS, FC6_LAYER);
+    fc_backward(feats->FC6, alexnet->FC6weights, error->P5, error->FC6, deltas->FC6weights, deltas->FC6bias, C5_CHANNELS*POOLING5_L*POOLING5_L, FC6_LAYER);
 
     max_pooling_backward(C5_CHANNELS, 3, FEATURE5_L, error->BN5, error->P5, feats->C5);
 
@@ -776,7 +776,7 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
     nonlinear_backward(error->BN1, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     batch_normalization_backward(error->C1, error->BN1, &(deltas->BN1_gamma), &(deltas->BN1_b), alexnet->BN1_avg, alexnet->BN5_var, alexnet->BN1_gamma, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     conv_backward(error->input, error->C1, feats->C1, alexnet->C1_weights, deltas->C1_weights, deltas->C1_bias, 
-                    IN_CHANNELS, C1_CHANNELS, FEATURE1_L, FEATURE1_L, 4, C1_KERNEL_L, 0);
+                    IN_CHANNELS, C1_CHANNELS, FEATURE1_L, FEATURE1_L, 4, C1_KERNEL_L, C1_STRIDES);
 
 
     params_update(alexnet, deltas, lr);
