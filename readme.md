@@ -7,7 +7,8 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - **parameters initilization**
 
 - **net_forward testing[finished]**
-- **net_backward testing**
+
+- **net_backward testing[finished]**
 
 - **Dataset: loader, sampler**
 
