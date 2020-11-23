@@ -4,8 +4,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 ## Todo List
 
-- **parameters initilization**
-
 - **Dataset: loader**
 
 - **Dataset: sampler**
@@ -31,3 +29,5 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - $\surd$ **net_forward testing**
 
 - $\surd$ **net_backward testing**
+
+- $\surd$ **parameters initilization**
