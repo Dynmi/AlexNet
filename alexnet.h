@@ -102,7 +102,7 @@ typedef struct Feature{
 
 void zero_feats(Feature *feats);
 
-void param_init(Alexnet *net);
+void global_params_initialize(Alexnet *net);
 
 void zero_grads(Alexnet *grads);
 
@@ -140,7 +140,3 @@ void softmax_backward(float *in_error, float *out_error, int units);
 
 void net_forward(Alexnet *alexnet, Feature *feats);
 void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *feats, float lr);
-
-
-void predict(Alexnet *alexnet, float *inputs, float *outputs);
-void train(Alexnet *alexnet);
