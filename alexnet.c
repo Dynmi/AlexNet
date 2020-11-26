@@ -1,12 +1,13 @@
 /**
  * 
- * Haris Wang       1313.9.19
+ * Haris Wang       2020.9.19
  * 
  * */
 
 #include <stdlib.h>
 #include <math.h>
 #include "alexnet.h"
+#include "hyperparams.h"
 
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))

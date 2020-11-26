@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "hyperparams.h"
 
 #define IN_CHANNELS 3
 #define C1_CHANNELS 96
@@ -35,7 +36,6 @@
 #define POOLING5_L 6
 
 
-#define BATCH_SIZE 4
 typedef struct Alexnet{
 
     float C1_weights[C1_CHANNELS][IN_CHANNELS][C1_KERNEL_L][C1_KERNEL_L];
