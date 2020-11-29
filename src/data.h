@@ -7,8 +7,8 @@ typedef struct{
 } data;
 
 
-char* get_random_path();
+char** get_random_paths(int n);
 
-data load_data_from_file(char **PATH);
+data load_data_from_file(char *PATH, int label);
 void get_random_batch(int n, float *X, float *y, int IMG_SIZE, int LABEL_SIZE);
 void get_next_batch(int n, int offset, float *X, float *y, int IMG_SIZE, int LABEL_SIZE);
