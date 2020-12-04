@@ -10,6 +10,8 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 - **Dataset: sampler**
 
+- **Operation: Dropout regularization**
+
 - **Metrics: Accuracy**
 
 - **Metrics: Precision**
