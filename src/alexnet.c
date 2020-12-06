@@ -548,13 +548,13 @@ void global_params_initialize(Alexnet *net)
     xavier_initialization(net->FC7weights, FC6_LAYER*FC7_LAYER, FC6_LAYER, FC7_LAYER);
     xavier_initialization(net->OUTweights, FC7_LAYER*OUT_LAYER, FC7_LAYER, OUT_LAYER);
 
-    memset(net->C1_bias, 0, 4);
-    memset(net->C2_bias, 0, 4);
-    memset(net->C3_bias, 0, 4);
-    memset(net->C4_bias, 0, 4);
-    memset(net->C5_bias, 0, 4);
-    memset(net->FC6bias, 0, 4);
-    memset(net->FC7bias, 0, 4);
+    memset(net->C1_bias, 1, 4);
+    memset(net->C2_bias, 1, 4);
+    memset(net->C3_bias, 1, 4);
+    memset(net->C4_bias, 1, 4);
+    memset(net->C5_bias, 1, 4);
+    memset(net->FC6bias, 1, 4);
+    memset(net->FC7bias, 1, 4);
 
     net->BN1_gamma = 1;
     net->BN2_gamma = 1;
