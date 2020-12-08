@@ -821,6 +821,7 @@ void CatelogCrossEntropy(float *error, float *preds, float *labels, int units)
 
 }
 
+
 void CatelogCrossEntropy_backward(float *delta_preds, float *preds, float *labels, int units)
 {
 

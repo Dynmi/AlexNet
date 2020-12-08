@@ -5,6 +5,98 @@
 #include "hyperparams.h"
 
 
+
+void metrics(float *ret, int *preds, int *labels, 
+                int classes, int totNum, int type)
+{
+    /**
+     * Input:
+     *      preds   [totNum]
+     *      labels  [totNum]
+     *      classes 
+     *      totNum
+     *      type    
+     * Output:
+     *      ret     
+     * */
+
+    int *totPred  = (float *)malloc(classes * sizeof(int)),
+        *totLabel = (float *)malloc(classes * sizeof(int)),
+        *TP       = (float *)malloc(classes * sizeof(int));
+    memset(totPred, 0, sizeof(int));
+    memset(totLabel, 0, sizeof(int));
+    memest(TP, 0, sizeof(int));
+
+    for(int p=0; p<totNum; p++)
+    {
+        
+        totPred[preds[p]]++;
+        totLabel[labels[p]]++;
+        if(preds[p]==labels[p])
+        {
+            TP[preds[p]]++;
+        }
+
+    }
+
+    int tmp_a=0, tmp_b=0;
+
+
+    for(int p=0; p<classes; p++)
+    {
+        tmp_a += TP[p];
+    }
+    float accuracy = tmp_a * 1.0 / totNum;
+
+    if(type==METRIC_ACCURACY)
+    {
+        *ret = accuracy;
+        return;
+    }
+
+    float precisions[classes];
+    float macro_p = 0;
+    for(int p=0; p<classes; p++)
+    {
+        precisions[p] = TP[p] / totLabel[p];
+        macro_p += precisions[p];
+    }
+    macro_p /= classes;
+
+    if(type==METRIC_PRECISION)
+    {
+        *ret = macro_p;
+        return;
+    }
+
+    float recalls[classes];
+    float macro_r = 0;
+    for(int p=0; p<classes; p++)
+    {
+        recalls[p] = TP[p] / totPred[p];
+        macro_r += recalls[p];
+    }
+    macro_r /= classes;
+
+    if(type==METRIC_RECALL)
+    {
+        *ret = macro_r;
+        return;
+    }
+
+    if(type==METRIC_F1SCORE)
+    {
+        *ret = 2*macro_p*macro_r / (macro_p+macro_r);
+        return;
+    }
+
+    free(totPred);
+    free(totLabel);
+    free(TP);
+}
+
+
+
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
 
@@ -18,6 +110,7 @@ void predict(Alexnet *alexnet, float *inputs, float *outputs)
 
 void train(Alexnet *alexnet, int epochs)
 {
+    
     Feature feats;
     Alexnet deltas;
     Feature error;
@@ -34,7 +127,7 @@ void train(Alexnet *alexnet, int epochs)
 
         zero_feats(&error);
         zero_grads(&deltas);
-        
+
         CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
         CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
 
