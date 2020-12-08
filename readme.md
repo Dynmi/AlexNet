@@ -29,12 +29,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 - **Operation: Dropout regularization**
 
-- **Metrics: Accuracy**
-
-- **Metrics: Precision**
-
-- **Metrics: Recall**
-
 - **Full test**
 
 - **Moudulr & Decoupling**
@@ -60,3 +54,9 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - $\surd$ **net_backward testing**
 
 - $\surd$ **parameters initilization**
+
+- $\surd$ **Metrics: Accuracy**
+
+- $\surd$ **Metrics: Precision**
+
+- $\surd$ **Metrics: Recall**

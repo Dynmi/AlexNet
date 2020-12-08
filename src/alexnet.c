@@ -747,6 +747,119 @@ void gradient_descent(Alexnet *alexnet, Alexnet *deltas, float a)
 }
 
 
+void cal_v_detlas(Alexnet *v, Alexnet *d)
+{
+
+    int i;
+    float *p_w, *p_d;
+
+    p_w = &(v->C1_weights);
+    p_d = &(d->C1_weights); 
+    for(i=0; i<C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i]  + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->C2_weights);
+    p_d = &(d->C2_weights); 
+    for(i=0; i<C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i]  + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->C3_weights);
+    p_d = &(d->C3_weights); 
+    for(i=0; i<C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->C4_weights);
+    p_d = &(d->C4_weights); 
+    for(i=0; i<C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->C5_weights);
+    p_d = &(d->C5_weights); 
+    for(i=0; i<C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->FC6weights);
+    p_d = &(d->FC6weights); 
+    for(i=0; i<C5_CHANNELS*FC6_LAYER*FC6KERNEL_L*FC6KERNEL_L; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->FC7weights);
+    p_d = &(d->FC7weights); 
+    for(i=0; i<FC6_LAYER*FC7_LAYER; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    p_w = &(v->OUTweights);
+    p_d = &(d->OUTweights); 
+    for(i=0; i<FC7_LAYER*OUT_LAYER; i++)
+    {
+        p_w[i] = BETA*p_w[i] + (1-BETA)*p_d[i];
+    }
+
+    for(i=0; i<C1_CHANNELS; i++)
+    {
+        v->C1_bias[i] = BETA * v->C1_bias[i] + (1-BETA) * d->C1_bias[i];
+    }
+
+    for(i=0; i<C2_CHANNELS; i++)
+    {
+        v->C2_bias[i] = BETA * v->C2_bias[i] + (1-BETA) * d->C2_bias[i];
+    }
+
+    for(i=0; i<C3_CHANNELS; i++)
+    {
+        v->C3_bias[i] = BETA * v->C3_bias[i] + (1-BETA) * d->C3_bias[i];
+    }
+
+    for(i=0; i<C4_CHANNELS; i++)
+    {
+        v->C4_bias[i] = BETA * v->C4_bias[i] + (1-BETA) * d->C4_bias[i];
+    }
+
+    for(i=0; i<C5_CHANNELS; i++)
+    {
+        v->C5_bias[i] = BETA * v->C5_bias[i] + (1-BETA) * d->C5_bias[i];
+    }
+
+    for(i=0; i<FC6_LAYER; i++)
+    {
+        v->FC6bias[i] = BETA * v->FC6bias[i] + (1-BETA) * d->FC6bias[i];
+    }
+
+    for(i=0; i<FC7_LAYER; i++)
+    {
+        v->FC7bias[i] = BETA * v->FC7bias[i] + (1-BETA) * d->FC7bias[i];
+    }
+
+
+    v->BN1_gamma = BETA * v->BN1_gamma + (1-BETA) * d->BN1_gamma;
+    v->BN2_gamma = BETA * v->BN2_gamma + (1-BETA) * d->BN2_gamma;
+    v->BN3_gamma = BETA * v->BN3_gamma + (1-BETA) * d->BN3_gamma;
+    v->BN4_gamma = BETA * v->BN4_gamma + (1-BETA) * d->BN4_gamma;
+    v->BN5_gamma = BETA * v->BN5_gamma + (1-BETA) * d->BN5_gamma;
+
+    v->BN1_b = BETA * v->BN1_b + (1-BETA) * d->BN1_b;
+    v->BN2_b = BETA * v->BN2_b + (1-BETA) * d->BN2_b;
+    v->BN3_b = BETA * v->BN3_b + (1-BETA) * d->BN3_b;
+    v->BN4_b = BETA * v->BN4_b + (1-BETA) * d->BN4_b;
+    v->BN5_b = BETA * v->BN5_b + (1-BETA) * d->BN5_b;
+
+}
+
+
 void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *feats, float lr)
 {
 
@@ -789,8 +902,11 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
     conv_backward(error->input, error->C1, feats->C1, alexnet->C1_weights, deltas->C1_weights, deltas->C1_bias, 
                     IN_CHANNELS, C1_CHANNELS, FEATURE1_L, FEATURE1_L, 4, C1_KERNEL_L, C1_STRIDES);
 
+    static Alexnet v_deltas;
+    
+    cal_v_deltas(&v_deltas, &deltas);
 
-    gradient_descent(alexnet, deltas, lr);
+    gradient_descent(alexnet, &v_deltas, lr);
 
 }
 
