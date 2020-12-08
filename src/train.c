@@ -23,6 +23,7 @@ void train(Alexnet *alexnet, int epochs)
     Feature error;
     float *batch_x = (float *)malloc(BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L);
     float *batch_y = (float *)malloc(BATCH_SIZE*OUT_LAYER);
+    float *CeError = (float *)malloc(OUT_LAYER);
 
     for(int e=0; e<epochs; e++)
     {
@@ -33,10 +34,14 @@ void train(Alexnet *alexnet, int epochs)
 
         zero_feats(&error);
         zero_grads(&deltas);
-        compute_mse_error(error.output, feats.output, batch_y, OUT_LAYER);
+        
+        CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
+        CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
+
         net_backward(&error, alexnet, &deltas, &feats, LEARNING_RATE);
     }
 
+    free(CeError);
     free(batch_x);
     free(batch_y);
 

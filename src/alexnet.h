@@ -140,3 +140,6 @@ void softmax_backward(float *in_error, float *out_error, int units);
 
 void net_forward(Alexnet *alexnet, Feature *feats);
 void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *feats, float lr);
+
+void CatelogCrossEntropy(float *error, float *preds, float *labels, int units);
+void CatelogCrossEntropy_backward(float *delta_preds, float *preds, float *labels, int units);

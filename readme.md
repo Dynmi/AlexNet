@@ -45,11 +45,13 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
   
 - **Trainer: weights save/load**
 
-- **circle loss**
-
 - **CUDA speed boosting**
 
-- **Finally, an overall evaluation on this project**
+- **Try & Compare on ImageNet**
+
+- **circle loss**
+
+- **Finally, an overall review on this project**
 
 - $\surd$ **unit testing for all ops**
 

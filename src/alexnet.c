@@ -795,23 +795,53 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
 }
 
 
-void compute_mse_error(float *error, float *preds, float *labels, int units)
+void CatelogCrossEntropy(float *error, float *preds, float *labels, int units)
 {
     /**
      * Compute error between 'preds' and 'labels', then send to 'error'
      * 
-     * error    [units]
-     * preds    [BATCH_SIZE, units]
-     * labels   [BATCH_SIZE, units]
+     * Input:
+     *      preds   [BATCH_SIZE, units]
+     *      labels  [BATCH_SIZE, units]
+     *      units
+     * 
+     * Output:
+     *      error   [units]
+     *  
      * */
 
     for(int i=0; i<units; i++)
     {
         for(int p=0; p<BATCH_SIZE; p++)      
         {
-            error[i] += (preds[p*units+i]-labels[p*units+i]) * (preds[p*units+i]-labels[p*units+i]);
+            error[i] -= labels[p*units+i]*log(preds[p*units+i])+(1-labels[p*units+i])*log(1-preds[p*units+i]);
         }
         error[i] /= BATCH_SIZE;
+    }
+
+}
+
+void CatelogCrossEntropy_backward(float *delta_preds, float *preds, float *labels, int units)
+{
+
+    /**
+     * CatelogCrossEntropy backward
+     * 
+     * Input:
+     *      preds   [BATCH_SIZE, units]
+     *      labels  [BATCH_SIZE, units]
+     *      units   
+     * Output:
+     *      delta_preds [units]
+     * */
+
+    for(int i=0; i<units; i++)
+    {
+        for(int p=0; p<BATCH_SIZE; p++)
+        {
+            delta_preds[i] += labels[p*units+i]*preds[p*units+i]+(1-labels[p*units+i])/(1-preds[p*units+i]);
+        }
+        delta_preds[i] /= BATCH_SIZE;
     }
 
 }
