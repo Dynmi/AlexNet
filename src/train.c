@@ -5,6 +5,58 @@
 #include "hyperparams.h"
 
 
+
+void metrics(float *ret, int *preds, int *labels, 
+                int classes, int TotalNum, int type)
+{
+    /**
+     * Input:
+     *      preds   [TotalNum]
+     *      labels  [TotalNum]
+     *      classes 
+     *      TotalNum
+     *      type    
+     * Output:
+     *      ret     
+     * */
+
+    int *total = (float *)malloc(classes * sizeof(int)),
+        *TP    = (float *)malloc(classes * sizeof(int)),
+        *FP    = (float *)malloc(classes * sizeof(int));
+    memset(total, 0, sizeof(int));
+    memest(TP, 0, sizeof(int));
+    memset(FP, 0, sizeof(int));
+
+    for(int p=0; p<TotalNum; p++)
+    {
+        
+        total[preds[p]]++;
+        if(preds[p]==labels[p])
+        {
+            TP[preds[p]]++;
+        }else{
+            FP[preds[p]]++;
+        }
+
+    }
+
+    int tmp_a=0, tmp_b=0;
+    for(int p=0; p<classes; p++)
+    {
+        tmp_a += TP[p];
+        tmp_b += total[p];
+    }
+    float accuracy = tmp_a * 1.0 / tmp_b;
+
+    *ret = accuracy;
+
+    free(total);
+    free(TP);
+    free(FP);
+}
+
+
+
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
 
@@ -34,7 +86,7 @@ void train(Alexnet *alexnet, int epochs)
 
         zero_feats(&error);
         zero_grads(&deltas);
-        
+
         CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
         CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
 
