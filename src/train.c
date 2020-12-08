@@ -10,6 +10,8 @@ void metrics(float *ret, int *preds, int *labels,
                 int classes, int totNum, int type)
 {
     /**
+     * Compute metric on given data
+     * 
      * Input:
      *      preds   [totNum]
      *      labels  [totNum]
@@ -99,6 +101,15 @@ void metrics(float *ret, int *preds, int *labels,
 
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
+    /**
+     * Implementation of inference 
+     * 
+     * Input:
+     *      alexnet
+     *      inputs
+     * Output:
+     *      outputs
+     * */
 
     Feature feats;
     memcpy(feats.input, inputs, sizeof(feats.input));
@@ -110,7 +121,14 @@ void predict(Alexnet *alexnet, float *inputs, float *outputs)
 
 void train(Alexnet *alexnet, int epochs)
 {
-    
+    /**
+     * train your model
+     * 
+     * Input:
+     *      alexnet
+     * Output:
+     *      alexnet
+     * */
     Feature feats;
     Alexnet deltas;
     Feature error;
@@ -120,13 +138,13 @@ void train(Alexnet *alexnet, int epochs)
 
     for(int e=0; e<epochs; e++)
     {
+        zero_feats(&error);
+        zero_grads(&deltas);
+
         get_random_batch(BATCH_SIZE, batch_x, batch_y, IN_CHANNELS*FEATURE0_L*FEATURE0_L, OUT_LAYER);
 
         memcpy(feats.input, batch_x, BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L*sizeof(float));
         net_forward(alexnet, &feats);
-
-        zero_feats(&error);
-        zero_grads(&deltas);
 
         CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
         CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
@@ -137,7 +155,5 @@ void train(Alexnet *alexnet, int epochs)
     free(CeError);
     free(batch_x);
     free(batch_y);
-
-
 
 }

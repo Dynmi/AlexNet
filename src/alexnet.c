@@ -61,7 +61,11 @@ void nonlinear_forward(float *x, int units)
     /**
      * forward of ReLU activation
      * 
-     * method: replace
+     * Input:
+     *      x
+     *      units
+     * Output:
+     *      x
      * */
     for (int i = 0; i < units; i++)
     {
@@ -75,7 +79,11 @@ void nonlinear_backward(float *x, int units)
     /**
      * backward of ReLU activation
      * 
-     * method: replace
+     * Input:
+     *      x
+     *      units
+     * Output:
+     *      x
      * */
 
     for (int i = 0; i < units; i++)
@@ -90,6 +98,13 @@ void conv_forward(float *input, float *weights, float *bias, float *output,
 {
     /**
      * Conv2D forward
+     * 
+     * Input:
+     *      input
+     *      weights
+     *      bias
+     * Output:
+     *      output
      * */
 
     int out_w, out_h, cur_w, cur_h;
@@ -151,6 +166,15 @@ void conv_backward(float *in_error, float *out_error, float *input, float *weigh
 {
     /**
      * Conv2D backward
+     * 
+     * Input:
+     *      out_error
+     *      input
+     *      weights
+     * Output:
+     *      in_error
+     *      w_deltas
+     *      b_deltas
      * */
     int out_w = (w+2*padding-kernel_size) / strides + 1,
         out_h = (h+2*padding-kernel_size) / strides + 1;
@@ -213,6 +237,11 @@ void max_pooling_forward(float *input, float *output, int channels, int in_lengt
 {
     /**
      * max pooling forward for multi-channel image
+     * 
+     * Input:
+     *      input
+     * Output:
+     *      output
      * */
 
     int o_x, o_y, o_length = in_length / strides;
@@ -256,6 +285,12 @@ void max_pooling_backward(int channels, int pool_size, int in_length, float *in_
 {
     /**
      * max pooling backward for multi-channel image
+     * 
+     * Input:
+     *      out_error
+     *      input
+     * Output:
+     *      in_error
      * */
 
     int out_length = ceil((float)in_length / pool_size);
@@ -271,10 +306,9 @@ void max_pooling_backward(int channels, int pool_size, int in_length, float *in_
             {
                 for (int p=0; p<BATCH_SIZE; p++)
                 {
-                    /**
-                     * output[c][i][j]
-                     * 
-                     * */
+                    //
+                    // output[c][i][j]
+                    //
                     x = i*pool_size;    
                     y = j*pool_size;
                     cur_value = input[p*channels*in_length*in_length + c*in_length*in_length + y*in_length + x];
@@ -309,11 +343,12 @@ void fc_forward(float *input, float *out, float *weights, float *bias, int in_un
     /**
      * fully connected layer forward
      * 
-     * 
-     * input    (BATCH_SIZE, in_units)
-     * out      (BATCH_SIZE, out_units)
-     * weights  (in_units, out_units)
-     * bias     (out_units)
+     * Input:
+     *      input    (BATCH_SIZE, in_units)
+     *      weights  (in_units, out_units)
+     *      bias     (out_units)
+     * Output:
+     *      out      (BATCH_SIZE, out_units)
      * */
     for (int p=0; p<BATCH_SIZE; p++)
     {
@@ -339,19 +374,16 @@ void fc_backward(float *input, float *weights, float *in_error, float *out_error
     /**
      * fully connected layer backward
      *
-     *      IN
-     * input
-     * weights
-     * out_error
-     * out_units
-     * 
-     *      OUT
-     * in_error
-     * w_deltas
-     * b_deltas
+     * Input:
+     *      input
+     *      weights
+     *      out_error
+     *      out_units
+     * Output:
+     *      in_error
+     *      w_deltas
+     *      b_deltas
      * */
-
-
     for (int i=0; i<in_units; i++)
     {
         for (int j=0; j<out_units; j++)
@@ -419,6 +451,15 @@ void batch_normalization_backward(float *in_error, float *out_error,
 {
     /**
      * batch normalization backward
+     * 
+     * Input:
+     *      out_error
+     *      avg
+     *      var
+     * Output:
+     *      in_error
+     *      delta_gamma
+     *      delta_beta
      * */
     float *delta_x_avg = (float *)malloc(units*4);
     float sum_delta_x_avg = 0;
@@ -447,8 +488,10 @@ void softmax_forward(float *input, float *output, int units)
     /**
      * softmax layer forward
      * 
-     * input    (BATCH_SIZE, units)
-     * output   (BATCH_SIZE, units)
+     * Input:
+     *      input    (BATCH_SIZE, units)
+     * Output:
+     *      output   (BATCH_SIZE, units)
      * */
 
     float sum;
@@ -473,6 +516,11 @@ void softmax_backward(float *in_error, float *out_error, int units)
 {
     /**
      * softmax layer backward
+     * 
+     * Input:
+     *      out_error   [units]
+     * Output:
+     *      in_error    [units]
      * */
 
     for(int i=0; i<units; i++)
@@ -497,6 +545,10 @@ void softmax_backward(float *in_error, float *out_error, int units)
 
 void zero_grads(Alexnet *grads)
 {
+    /**
+     * set gradient struct to zero
+     * */
+
     memset(grads->C1_weights, 0, 4);
     memset(grads->C2_weights, 0, 4);
     memset(grads->C3_weights, 0, 4);
@@ -539,6 +591,9 @@ void xavier_initialization(float *p, int n, int in_units, int out_units)
 
 void global_params_initialize(Alexnet *net)
 {
+    /**
+     * initialize all the trainable parameters
+     * */
     xavier_initialization(net->C1_weights, C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L, IN_CHANNELS*FEATURE0_L*FEATURE0_L, C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     xavier_initialization(net->C2_weights, C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L, C1_CHANNELS*POOLING1_L*POOLING1_L, C2_CHANNELS*FEATURE2_L*FEATURE2_L);
     xavier_initialization(net->C3_weights, C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L, C2_CHANNELS*POOLING2_L*POOLING2_L, C3_CHANNELS*FEATURE3_L*FEATURE3_L);
@@ -920,7 +975,6 @@ void CatelogCrossEntropy(float *error, float *preds, float *labels, int units)
      *      preds   [BATCH_SIZE, units]
      *      labels  [BATCH_SIZE, units]
      *      units
-     * 
      * Output:
      *      error   [units]
      *  

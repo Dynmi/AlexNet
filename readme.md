@@ -6,22 +6,18 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 ## Original AlexNet7 Details
 
-- GaussianInitialization(mean=0,stddv=0.01) for all $w$s
-- OneInitialization for all $b$s
-- ReLU
+- $\surd$ ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
+- $\surd$ OneInitialization for all $b$s
+- $\surd$ ReLU
 - Dropout in the first two FC layers
 - Data Augmentation: generating image translations & horizontal reflections
 - ~~Local Response Normalization~~ Here I use Batch-Norm instead of LR-Norm
-- Overlapping Pooling
-- MomentumSGD
-- CrossEntropy Loss
+- $\surd$ Overlapping Pooling
+- $\surd$ MomentumSGD
+- $\surd$ CrossEntropy Loss
 - CUDA / 2 GPU / Training
 
 ## Todo List
-
-- **Dropout**
-
-- **MomentumSGD**
   
 - **Dataset: loader**
 
@@ -60,3 +56,5 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - $\surd$ **Metrics: Precision**
 
 - $\surd$ **Metrics: Recall**
+
+- $\surd$ **MomentumSGD**
