@@ -1,5 +1,6 @@
 #include <stdlib.h>
-#include <opencv4/opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 #include "alexnet.h"
 #include "data.h"
 
@@ -32,6 +33,16 @@ data load_data_from_file(char *PATH, int label)
 
 void get_random_batch(int n, float *X, float *y, int IMG_SIZE, int LABEL_SIZE)
 {
+    /**
+     * sample random batch of data
+     * Input:
+     *      n
+     *      IMG_SIZE
+     *      LABEL_SIZE
+     * Output:
+     *      X
+     *      y
+     * */
     data d;
     char **path = get_random_paths(n);
     for (int i=0; i<n; i++)
@@ -45,5 +56,5 @@ void get_random_batch(int n, float *X, float *y, int IMG_SIZE, int LABEL_SIZE)
 
 void get_next_batch(int n, int offset, float *X, float *y, int IMG_SIZE, int LABEL_SIZE)
 {
-    
+
 }
