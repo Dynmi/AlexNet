@@ -1,9 +1,27 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "alexnet.h"
 #include "train.h"
 #include "data.h"
 #include "hyperparams.h"
 
+
+int argmax(float *inputs, int units)
+{
+    int idx=-1,
+        max=0;
+    for(int p=0; p<units; p++)
+    {
+        if(inputs[p]>max)
+        {
+            idx = p;
+            max = inputs[p];
+        }
+    }
+    
+    assert(idx!=-1);
+    return idx;
+}
 
 
 void metrics(float *ret, int *preds, int *labels, 
@@ -98,7 +116,6 @@ void metrics(float *ret, int *preds, int *labels,
 }
 
 
-
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
     /**
@@ -126,6 +143,7 @@ void train(Alexnet *alexnet, int epochs)
      * 
      * Input:
      *      alexnet
+     *      epochs
      * Output:
      *      alexnet
      * */
@@ -141,15 +159,28 @@ void train(Alexnet *alexnet, int epochs)
         zero_feats(&error);
         zero_grads(&deltas);
 
+        // sample random batch of data for training
         get_random_batch(BATCH_SIZE, batch_x, batch_y, IN_CHANNELS*FEATURE0_L*FEATURE0_L, OUT_LAYER);
-
         memcpy(feats.input, batch_x, BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L*sizeof(float));
+
         net_forward(alexnet, &feats);
 
+        // compute CatelogCrossEntropy
         CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
         CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
 
+        // update all trainable parameters
         net_backward(&error, alexnet, &deltas, &feats, LEARNING_RATE);
+
+        static float metric=0; 
+        static int labels[BATCH_SIZE],preds[BATCH_SIZE];
+        for(int i=0; i<BATCH_SIZE; i++)
+        {
+            labels[i] = argmax(feats.output[i*OUT_LAYER], OUT_LAYER); 
+            preds[i]  = argmax(feats.output[i*OUT_LAYER], OUT_LAYER);
+        }
+        metrics(&metric, preds, labels, OUT_LAYER, BATCH_SIZE, METRIC_ACCURACY);
+        printf("At epoch %d, Accuracy on training data is %d \n", e, metric);
     }
 
     free(CeError);
