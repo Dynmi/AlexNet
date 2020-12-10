@@ -543,6 +543,31 @@ void softmax_backward(float *in_error, float *out_error, int units)
 }
 
 
+void Dropout(float *x, float prob, int units)
+{
+    /**
+     * Dropout regularization
+     * 
+     * Input:
+     *      x   [BATCH_SIZE, units]
+     *      prob    prob~(0,1)
+     *      units   
+     * Output:
+     *      x   [BATCH_SIZE, units]
+     * */
+    for(int p=0; p<BATCH_SIZE; p++)
+    {
+        for(int i=0; i<units; i++)
+        {
+            if(rand()%100 > prob*100)
+            {
+                x[p*units+i] = 0;
+            }
+        }
+    }
+}
+
+
 void zero_grads(Alexnet *grads)
 {
     /**
@@ -683,9 +708,11 @@ void net_forward(Alexnet *alexnet, Feature *feats)
     max_pooling_forward(feats->BN5, feats->P5, C5_CHANNELS, FEATURE5_L, 2, 3);
 
     fc_forward(feats->P5, feats->FC6, alexnet->FC6weights, alexnet->FC6bias, C5_CHANNELS*POOLING5_L*POOLING5_L, FC6_LAYER);
+    Dropout(feats->FC6, DROPOUT_PROB, FC6_LAYER);
     nonlinear_forward(feats->FC6, FC6_LAYER);
 
     fc_forward(feats->FC6, feats->FC7, alexnet->FC7weights, alexnet->FC7bias, FC6_LAYER, FC7_LAYER);
+    Dropout(feats->FC7, DROPOUT_PROB, FC7_LAYER);
     nonlinear_forward(feats->FC7, FC7_LAYER);
 
     softmax_forward(feats->FC7, feats->output, OUT_LAYER);

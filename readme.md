@@ -9,7 +9,7 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - $\surd$ ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
 - $\surd$ OneInitialization for all $b$s
 - $\surd$ ReLU
-- Dropout in the first two FC layers
+- $\surd$ Dropout in the first two FC layers
 - Data Augmentation: generating image translations & horizontal reflections
 - ~~Local Response Normalization~~ Here I use Batch-Norm instead of LR-Norm
 - $\surd$ Overlapping Pooling
@@ -22,8 +22,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - **Dataset: loader**
 
 - **Dataset: sampler**
-
-- **Operation: Dropout regularization**
 
 - **Full test**
 
@@ -58,3 +56,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - $\surd$ **Metrics: Recall**
 
 - $\surd$ **MomentumSGD**
+
+- $\surd$ **Operation: Dropout regularization**
+
