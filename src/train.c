@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "alexnet.h"
+#include <assert.h>
+#include <string.h>
 #include "train.h"
 #include "data.h"
 #include "hyperparams.h"
@@ -45,7 +46,7 @@ void metrics(float *ret, int *preds, int *labels,
         *TP       = (float *)malloc(classes * sizeof(int));
     memset(totPred, 0, sizeof(int));
     memset(totLabel, 0, sizeof(int));
-    memest(TP, 0, sizeof(int));
+    memset(TP, 0, sizeof(int));
 
     for(int p=0; p<totNum; p++)
     {
