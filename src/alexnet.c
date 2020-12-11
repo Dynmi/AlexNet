@@ -986,7 +986,7 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
 
     static Alexnet v_deltas;
     
-    cal_v_deltas(&v_deltas, &deltas);
+    cal_v_detlas(&v_deltas, &deltas);
 
     gradient_descent(alexnet, &v_deltas, lr);
 
