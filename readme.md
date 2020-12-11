@@ -21,21 +21,21 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
   
 - **Dataset: loader**
 
-- **Dataset: sampler**
+- $\surd$ **Dataset: sampler**
 
 - **Full test**
 
-- **Moudulr & Decoupling**
+- **Try & Compare on ImageNet**
  
 - **Trainer: logger**
+
+- **Moudulr & Decoupling**
 
 - **Trainer: lr-scheduler** 
   
 - **Trainer: weights save/load**
 
 - **CUDA speed boosting**
-
-- **Try & Compare on ImageNet**
 
 - **circle loss**
 
