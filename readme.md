@@ -6,56 +6,56 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 ## Original AlexNet7 Details
 
-- $\surd$ ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
-- $\surd$ OneInitialization for all $b$s
-- $\surd$ ReLU
-- $\surd$ Dropout in the first two FC layers
+- ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
+- OneInitialization for all $b$s
+- ReLU
+- Dropout in the first two FC layers
 - Data Augmentation: generating image translations & horizontal reflections
 - ~~Local Response Normalization~~ Here I use Batch-Norm instead of LR-Norm
-- $\surd$ Overlapping Pooling
-- $\surd$ MomentumSGD
-- $\surd$ CrossEntropy Loss
+- Overlapping Pooling
+- MomentumSGD
+- CrossEntropy Loss
 - CUDA / 2 GPU / Training
 
 ## Todo List
   
-- **Dataset: loader**
+- [ ]  **Dataset: loader**
 
-- $\surd$ **Dataset: sampler**
+- [x]  **Dataset: sampler**
 
-- **Full test**
+- [ ]  **Full test**
 
-- **Try & Compare on ImageNet**
+- [ ]  **Try & Compare on ImageNet**
  
-- **Trainer: logger**
+- [ ]  **Trainer: logger**
 
-- **Moudulr & Decoupling**
+- [ ]  **Moudulr & Decoupling**
 
-- **Trainer: lr-scheduler** 
+- [ ]  **Trainer: lr-scheduler** 
   
-- **Trainer: weights save/load**
+- [ ]  **Trainer: weights save/load**
 
-- **CUDA speed boosting**
+- [ ]  **CUDA speed boosting**
 
-- **circle loss**
+- [ ]  **circle loss**
 
-- **Finally, an overall review on this project**
+- [ ]  **Finally, an overall review on this project**
 
-- $\surd$ **unit testing for all ops**
+- [x]  **unit testing for all ops**
 
-- $\surd$ **net_forward testing**
+- [x]  **net_forward testing**
 
-- $\surd$ **net_backward testing**
+- [x]  **net_backward testing**
 
-- $\surd$ **parameters initilization**
+- [x]  **parameters initilization**
 
-- $\surd$ **Metrics: Accuracy**
+- [x]  **Metrics: Accuracy**
 
-- $\surd$ **Metrics: Precision**
+- [x]  **Metrics: Precision**
 
-- $\surd$ **Metrics: Recall**
+- [x]  **Metrics: Recall**
 
-- $\surd$ **MomentumSGD**
+- [x]  **MomentumSGD**
 
-- $\surd$ **Operation: Dropout regularization**
+- [x]  **Operation: Dropout regularization**
 
