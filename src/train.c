@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
-#include "train.h"
+#include "alexnet.h"
 #include "data.h"
 #include "hyperparams.h"
 
@@ -148,12 +148,15 @@ void train(Alexnet *alexnet, int epochs)
      * Output:
      *      alexnet
      * */
-    Feature feats;
-    Alexnet deltas;
-    Feature error;
+    static Feature feats;
+    static Alexnet deltas;
+    static Feature error;
     float *batch_x = (float *)malloc(BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L);
     float *batch_y = (float *)malloc(BATCH_SIZE*OUT_LAYER);
     float *CeError = (float *)malloc(OUT_LAYER);
+
+    static float metric=0; 
+    static int labels[BATCH_SIZE],preds[BATCH_SIZE];
 
     for(int e=0; e<epochs; e++)
     {
@@ -161,7 +164,8 @@ void train(Alexnet *alexnet, int epochs)
         zero_grads(&deltas);
 
         // sample random batch of data for training
-        get_random_batch(BATCH_SIZE, batch_x, batch_y, IN_CHANNELS*FEATURE0_L*FEATURE0_L, OUT_LAYER);
+        get_random_batch(BATCH_SIZE, batch_x, batch_y, FEATURE0_L, FEATURE0_L, IN_CHANNELS, OUT_LAYER);
+
         memcpy(feats.input, batch_x, BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L*sizeof(float));
 
         net_forward(alexnet, &feats);
@@ -173,8 +177,6 @@ void train(Alexnet *alexnet, int epochs)
         // update all trainable parameters
         net_backward(&error, alexnet, &deltas, &feats, LEARNING_RATE);
 
-        static float metric=0; 
-        static int labels[BATCH_SIZE],preds[BATCH_SIZE];
         for(int i=0; i<BATCH_SIZE; i++)
         {
             labels[i] = argmax(feats.output[i*OUT_LAYER], OUT_LAYER); 
@@ -182,6 +184,7 @@ void train(Alexnet *alexnet, int epochs)
         }
         metrics(&metric, preds, labels, OUT_LAYER, BATCH_SIZE, METRIC_ACCURACY);
         printf("At epoch %d, Accuracy on training data is %d \n", e, metric);
+    
     }
 
     free(CeError);

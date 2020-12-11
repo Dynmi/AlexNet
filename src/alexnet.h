@@ -36,7 +36,7 @@
 #define POOLING5_L 6
 
 
-typedef struct Alexnet{
+typedef struct{
 
     float C1_weights[C1_CHANNELS][IN_CHANNELS][C1_KERNEL_L][C1_KERNEL_L];
     float C2_weights[C2_CHANNELS][C1_CHANNELS][C2_KERNEL_L][C2_KERNEL_L];
@@ -70,7 +70,7 @@ typedef struct Alexnet{
 }Alexnet;
 
 
-typedef struct Feature{
+typedef struct {
 
 	float input[BATCH_SIZE][IN_CHANNELS][FEATURE0_L][FEATURE0_L];
 	float C1[BATCH_SIZE][C1_CHANNELS][FEATURE1_L][FEATURE1_L];
@@ -137,9 +137,27 @@ void softmax_forward(float *input, float *output, int units);
 void softmax_backward(float *in_error, float *out_error, int units);
 
 
-
 void net_forward(Alexnet *alexnet, Feature *feats);
 void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *feats, float lr);
+void cal_v_detlas(Alexnet *v, Alexnet *d);
 
 void CatelogCrossEntropy(float *error, float *preds, float *labels, int units);
 void CatelogCrossEntropy_backward(float *delta_preds, float *preds, float *labels, int units);
+
+
+
+
+// Definiation of metric type
+#define METRIC_ACCURACY  0
+#define METRIC_PRECISION 1      // macro-precision
+#define METRIC_RECALL    2      // macro-recall
+#define METRIC_F1SCORE   3
+#define METRIC_ROC       4
+
+
+void metrics(float *ret, int *preds, int *labels, 
+                int classes, int TotalNum, int type);
+
+void predict(Alexnet *alexnet, float *inputs, float *outputs);
+
+void train(Alexnet *alexnet, int epochs);
