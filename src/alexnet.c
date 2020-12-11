@@ -1,9 +1,8 @@
-/**
- * 
- * Haris Wang       2020.9.19
- * 
- * */
-
+//
+// File:        alexnet.c
+// Description: Implemention of alexnet-related operations
+// Author:      Haris Wang
+//
 #include <stdlib.h>
 #include <math.h>
 #include "alexnet.h"
@@ -722,6 +721,16 @@ void net_forward(Alexnet *alexnet, Feature *feats)
 
 void gradient_descent(Alexnet *alexnet, Alexnet *deltas, float a)
 {
+    /**
+     * Mini-batch gradient descent
+     * 
+     * Input:
+     *      alexnet all the trainable-weights
+     *      deltas  deltas of alexnet weights
+     *      a       learning rate
+     * Output: 
+     *      alexnet
+     * */
     int i;
     float *p_w, *p_d;
 
@@ -831,10 +840,17 @@ void gradient_descent(Alexnet *alexnet, Alexnet *deltas, float a)
 
 void cal_v_detlas(Alexnet *v, Alexnet *d)
 {
-
+    /**
+     * calculate new v_deltas with old v_deltas and deltas
+     * 
+     * Input:
+     *      v
+     *      d
+     * Output:
+     *      v
+     * */ 
     int i;
     float *p_w, *p_d;
-
     p_w = &(v->C1_weights);
     p_d = &(d->C1_weights); 
     for(i=0; i<C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L; i++)
@@ -985,9 +1001,7 @@ void net_backward(Feature *error, Alexnet *alexnet, Alexnet *deltas, Feature *fe
                     IN_CHANNELS, C1_CHANNELS, FEATURE1_L, FEATURE1_L, 4, C1_KERNEL_L, C1_STRIDES);
 
     static Alexnet v_deltas;
-    
-    cal_v_detlas(&v_deltas, &deltas);
-
+    cal_v_detlas(&v_deltas, deltas);
     gradient_descent(alexnet, &v_deltas, lr);
 
 }

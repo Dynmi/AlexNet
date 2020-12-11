@@ -18,10 +18,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - CUDA / 2 GPU / Training
 
 ## Todo List
-  
-- [ ]  **Dataset: loader**
-
-- [x]  **Dataset: sampler**
 
 - [ ]  **Full test**
 
@@ -59,3 +55,6 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 - [x]  **Operation: Dropout regularization**
 
+- [x]  **Dataset: loader**
+
+- [x]  **Dataset: sampler**

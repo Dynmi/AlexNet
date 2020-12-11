@@ -1,3 +1,9 @@
+//
+// File:        train.c
+// Description: Provide train & evaluate functions
+// Author:      Haris Wang
+//
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
@@ -7,16 +13,25 @@
 #include "hyperparams.h"
 
 
-int argmax(float *inputs, int units)
+int argmax(float *arr, int shift, int n)
 {
+    /**
+     * Return the index of max-value among arr[shift]~arr[shift+n]
+     * 
+     * Input:
+     *      arr
+     * Output:
+     * Return:
+     *      the index of max-value
+     * */ 
     int idx=-1,
         max=0;
-    for(int p=0; p<units; p++)
+    for(int p=0; p<n; p++)
     {
-        if(inputs[p]>max)
+        if(arr[shift+p]>max)
         {
             idx = p;
-            max = inputs[p];
+            max = arr[shift+p];
         }
     }
     
@@ -29,7 +44,7 @@ void metrics(float *ret, int *preds, int *labels,
                 int classes, int totNum, int type)
 {
     /**
-     * Compute metric on given data
+     * Compute metric on 'preds' and 'labels'
      * 
      * Input:
      *      preds   [totNum]
@@ -120,13 +135,13 @@ void metrics(float *ret, int *preds, int *labels,
 void predict(Alexnet *alexnet, float *inputs, float *outputs)
 {
     /**
-     * Implementation of inference 
+     * Make prediction with weights and inputs
      * 
      * Input:
      *      alexnet
-     *      inputs
+     *      inputs      [BATCH_SIZE, IN_CHANNELS*FEATURE0_L*FEATURE0_L]
      * Output:
-     *      outputs
+     *      outputs     [BATCH_SIZE, OUT_LAYER]
      * */
 
     Feature feats;
@@ -151,11 +166,11 @@ void train(Alexnet *alexnet, int epochs)
     static Feature feats;
     static Alexnet deltas;
     static Feature error;
-    float *batch_x = (float *)malloc(BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L);
-    float *batch_y = (float *)malloc(BATCH_SIZE*OUT_LAYER);
-    float *CeError = (float *)malloc(OUT_LAYER);
+    float *batch_x = (float *)malloc(BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L*sizeof(float));
+    float *batch_y = (float *)malloc(BATCH_SIZE*OUT_LAYER*sizeof(float));
+    float *CeError = (float *)malloc(OUT_LAYER*sizeof(float));
 
-    static float metric=0; 
+    float metric=0; 
     static int labels[BATCH_SIZE],preds[BATCH_SIZE];
 
     for(int e=0; e<epochs; e++)
@@ -167,23 +182,27 @@ void train(Alexnet *alexnet, int epochs)
         get_random_batch(BATCH_SIZE, batch_x, batch_y, FEATURE0_L, FEATURE0_L, IN_CHANNELS, OUT_LAYER);
 
         memcpy(feats.input, batch_x, BATCH_SIZE*IN_CHANNELS*FEATURE0_L*FEATURE0_L*sizeof(float));
+        //printf("after \"memcpy\" \n");
 
         net_forward(alexnet, &feats);
+        //printf("after \"net_forward\" \n");
 
         // compute CatelogCrossEntropy
         CatelogCrossEntropy(CeError, feats.output, batch_y, OUT_LAYER);
         CatelogCrossEntropy_backward(error.output, feats.output, batch_y, OUT_LAYER);
+        //printf("after \"CatelogCrossEntropy_backward\" \n");
 
         // update all trainable parameters
         net_backward(&error, alexnet, &deltas, &feats, LEARNING_RATE);
+        //printf("after \"net_backward\" \n");
 
         for(int i=0; i<BATCH_SIZE; i++)
         {
-            labels[i] = argmax(feats.output[i*OUT_LAYER], OUT_LAYER); 
-            preds[i]  = argmax(feats.output[i*OUT_LAYER], OUT_LAYER);
+            labels[i] = argmax(&(feats.output), i*OUT_LAYER, OUT_LAYER); 
+            preds[i]  = argmax(&(feats.output), i*OUT_LAYER, OUT_LAYER);
         }
         metrics(&metric, preds, labels, OUT_LAYER, BATCH_SIZE, METRIC_ACCURACY);
-        printf("At epoch %d, Accuracy on training data is %d \n", e, metric);
+        //printf("At epoch %d, Accuracy on training data is %.2f \n", e, metric);
     
     }
 
