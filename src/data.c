@@ -10,7 +10,9 @@
 #include "data.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
 
 image make_image(int w, int h, int c)
 {
@@ -158,12 +160,15 @@ void get_random_batch(int n, float *X, float *Y,
      * */
     image img; 
     img = make_image(w, h, c);
-    char path[256];
+    char imgpath[256];
     int label = 1;
     for (int i=0; i<n; i++)
     {
-        sprintf(path, "../dataset/%d/ISIC_000000%d.png", label, rand()%10);
-        img = load_image(path, w, h, c);
+        //sprintf(imgpath, "C:\\Download\\AlexNet7-test\\imagenet-mini\\train\\%d\\%d.jpeg", label, rand()%15);
+        label = rand()%CLASSES;
+        sprintf(imgpath, "/home/haris/Documents/AlexNet7/images/%d/%d.jpeg", label, rand()%1000);
+        //printf("image:%s class:%d\n", imgpath, label);
+        img = load_image(imgpath, w, h, c);
         memcpy(X+i*w*h*c, img.data, w*h*c*sizeof(float));
         Y[i*CLASSES+label]=1;
     }

@@ -1,10 +1,10 @@
-# Implemention of AlexNet7
+# Implemention of AlexNet
 
 > Under Development 
 
 This project is an unofficial implemention of AlexNet-7, using C Program Language Without Any 3rd Library, according to the paper "ImageNet Classification with Deep Convolutional Neural Networks" by Alex Krizhevsky,et al.
 
-## Original AlexNet7 Details
+## Original AlexNet Details
 
 - ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
 - OneInitialization for all $b$s
@@ -18,6 +18,8 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - CUDA / 2 GPU / Training
 
 ## Todo List
+
+- [x]  **alexnet_backward**
 
 - [ ]  **Full test**
 
@@ -58,3 +60,7 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 - [x]  **Dataset: loader**
 
 - [x]  **Dataset: sampler**
+
+## Reference
+
+- [http://cvml.ist.ac.at/courses/DLWT_W17/material/AlexNet.pdf](http://cvml.ist.ac.at/courses/DLWT_W17/material/AlexNet.pdf)
