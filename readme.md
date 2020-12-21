@@ -2,7 +2,7 @@
 
 > Under Development 
 
-## Oh, Why the training does not work?
+- It needs an evaluation on imagenet!!!!!!!!!!!!!!!!!!
 
 This project is an unofficial implemention of AlexNet, using C Program Language Without Any 3rd Library, according to the paper "ImageNet Classification with Deep Convolutional Neural Networks" by Alex Krizhevsky,et al.
 
