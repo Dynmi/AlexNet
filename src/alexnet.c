@@ -667,14 +667,6 @@ void cross_entropy_loss(float *delta_preds, const float *preds, const int *label
             }else{
                 delta_preds[i] += exp(preds[i+p*units]) / esum;
             } 
-/*
-            if(labels[p]==i)
-            {
-                delta_preds[i] += 2 * (preds[i]-1);
-            }else{
-                delta_preds[i] += 2 * (preds[i]-0);
-            }
-*/
         }
     }
     ce_loss /= BATCH_SIZE;
@@ -683,7 +675,7 @@ void cross_entropy_loss(float *delta_preds, const float *preds, const int *label
     for(int i=0; i<units; i++)
     {
         delta_preds[i] /= BATCH_SIZE;
-        printf("delta_preds%d  %f \n", i, delta_preds[i]);
+        //printf("delta_preds%d  %f \n", i, delta_preds[i]);
     }
 }
 
@@ -742,6 +734,11 @@ static float v_bn4_beta[C4_CHANNELS*FEATURE4_L*FEATURE4_L];
 static float v_bn5_beta[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
 
 
+void clip(float *x, float down, float up)
+{
+    *x = MIN(up, MAX(down, *x));
+}
+
 void momentum_sgd(float *w, float *v_w, float *d_w, int units)
 {
     /**
@@ -758,9 +755,8 @@ void momentum_sgd(float *w, float *v_w, float *d_w, int units)
     for(int i=0; i<units; i++)
     {
         v_w[i] = 0.2 * v_w[i] - 0.8 * LEARNING_RATE * d_w[i];
-        v_w[i] = MAX(v_w[i], -1.0);
-        v_w[i] = MIN(v_w[i], 1.0);
-        w[i]   = w[i] + v_w[i];
+        clip(v_w+i, -1, 1);
+        w[i] = w[i] + v_w[i];
     }
 }
 

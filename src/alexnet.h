@@ -50,8 +50,8 @@
 #define POOLING5_L 6
 
 #define FC6_LAYER   4096
-#define FC7_LAYER   784
-#define OUT_LAYER   10
+#define FC7_LAYER   4096
+#define OUT_LAYER   1000
 
 
 
