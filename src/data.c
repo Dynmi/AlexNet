@@ -3,10 +3,10 @@
 // Description: Provide functions for data process 
 // Author:      Haris Wang
 //
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <time.h>
 #include "data.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -121,15 +121,16 @@ image load_image(char *filename, int W, int H, int channels)
     }
     if(channels) c=channels;
     image img = make_image(w, h, c);
+    int dst_idx, src_idx;
     for(int k=0; k<c; k++)
     {
         for(int j=0; j<h; j++)
         {
             for(int i=0; i<w; i++)
             {
-                int dst_idx = i + w*j + w*h*k;
-                int src_idx = k + c*i + c*w*j;
-                img.data[dst_idx] = (float)data[src_idx]/255.0;
+                dst_idx = i + w*j + w*h*k;
+                src_idx = k + c*i + c*w*j;
+                img.data[dst_idx] = (float)data[src_idx]/127.5 - 1;
             }
         }
     }
@@ -145,7 +146,7 @@ image load_image(char *filename, int W, int H, int channels)
 }
 
 
-void get_random_batch(int n, float *X, float *Y, 
+void get_random_batch(int n, float *X, int *Y, 
                         int w, int h, int c, int CLASSES)
 {
     /**
@@ -155,22 +156,23 @@ void get_random_batch(int n, float *X, float *Y,
      *      w, h, c
      *      CLASSES
      * Output:
-     *      X
-     *      Y
+     *      X   [n,c,w,h]
+     *      Y   [n]
      * */
     image img; 
     img = make_image(w, h, c);
     char imgpath[256];
-    int label = 1;
+    int label;
+    srand( (unsigned)time( NULL ) );
     for (int i=0; i<n; i++)
     {
         //sprintf(imgpath, "C:\\Download\\AlexNet7-test\\imagenet-mini\\train\\%d\\%d.jpeg", label, rand()%15);
         label = rand()%CLASSES;
-        sprintf(imgpath, "/home/haris/Documents/AlexNet7/images/%d/%d.jpeg", label, rand()%1000);
+        sprintf(imgpath, "/home/haris/Documents/AlexNet/images10/%d/%d.jpeg", label, rand()%1000);
         //printf("image:%s class:%d\n", imgpath, label);
         img = load_image(imgpath, w, h, c);
         memcpy(X+i*w*h*c, img.data, w*h*c*sizeof(float));
-        Y[i*CLASSES+label]=1;
+        Y[i] = label;
     }
 }
 

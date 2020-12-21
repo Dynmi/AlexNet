@@ -4,7 +4,7 @@
 #include <time.h>
 #include "hyperparams.h"
 
-//#define SHOW_PREDCITION_DETAIL
+#define SHOW_PREDCITION_DETAIL
 #define SHOW_METRIC_EVALUTE
 //#define SHOW_OP_TIME
 
@@ -49,8 +49,8 @@
 #define FEATURE5_L 13
 #define POOLING5_L 6
 
-#define FC6_LAYER   1024
-#define FC7_LAYER   512
+#define FC6_LAYER   4096
+#define FC7_LAYER   784
 #define OUT_LAYER   10
 
 
@@ -144,7 +144,7 @@ typedef struct network {
     nonlinear_op relu7;
 
     fc_op fc3;
-
+    nonlinear_op sfx;
 } alexnet;
 
 
@@ -163,7 +163,7 @@ void metrics(float *ret, int *preds, int *labels,
 
 
 void alexnet_forward(alexnet *net);
-void alexnet_backward(alexnet *net, float *batch_Y);
+void alexnet_backward(alexnet *net, int *batch_Y);
 
 void alexnet_malloc_params(alexnet *net);
 void alexnet_free_params(alexnet *net);

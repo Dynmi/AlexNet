@@ -4,24 +4,17 @@
 
 ## Oh, Why the training does not work?
 
-This project is an unofficial implemention of AlexNet-7, using C Program Language Without Any 3rd Library, according to the paper "ImageNet Classification with Deep Convolutional Neural Networks" by Alex Krizhevsky,et al.
+This project is an unofficial implemention of AlexNet, using C Program Language Without Any 3rd Library, according to the paper "ImageNet Classification with Deep Convolutional Neural Networks" by Alex Krizhevsky,et al.
 
 ## Original AlexNet Details
 
-- ~~Gaussian Initialization(mean=0,stddv=0.01)~~ XavierInitialization for all $w$s
-- OneInitialization for all $b$s
-- ReLU
-- Dropout in the first two FC layers
-- Data Augmentation: generating image translations & horizontal reflections
-- ~~Local Response Normalization~~ Here I use Batch-Norm instead of LR-Norm
-- Overlapping Pooling
-- MomentumSGD
-- CrossEntropy Loss
-- CUDA / 2 GPU / Training
+> divide the learning rate by 10 when the validation error rate stopped improving with the current learning rate. The learning rate was initialized at 0.01 and reduced three times prior to termination. We trained the network for roughly 90 cycles through the training set of 1.2 million images.
 
 ## Todo List
 
 - [x]  **alexnet_backward**
+
+- [ ]  **img2col conv**
 
 - [ ]  **Full test**
 
@@ -65,4 +58,4 @@ This project is an unofficial implemention of AlexNet-7, using C Program Languag
 
 ## Reference
 
-- [http://cvml.ist.ac.at/courses/DLWT_W17/material/AlexNet.pdf](http://cvml.ist.ac.at/courses/DLWT_W17/material/AlexNet.pdf)
+- [AlexNet, NIPS2012](https://proceedings.neurips.cc/paper/2012/hash/c399862d3b9d6b76c8436e924a68c45b-Abstract.html)

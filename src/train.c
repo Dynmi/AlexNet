@@ -148,10 +148,10 @@ void alexnet_inference(alexnet *net)
 void alexnet_train(alexnet *net, int epochs)
 {
 
-    float   *batch_X = (float *)malloc(BATCH_SIZE * sizeof(float) * IN_CHANNELS*FEATURE0_L*FEATURE0_L),
-            *batch_Y = (float *)malloc(BATCH_SIZE * sizeof(float) * OUT_LAYER);
+    float   *batch_X = (float *)malloc(BATCH_SIZE * sizeof(float) * IN_CHANNELS*FEATURE0_L*FEATURE0_L);
+    int     *batch_Y = (int   *)malloc(BATCH_SIZE * sizeof(int));
 
-    int labels[OUT_LAYER], preds[OUT_LAYER];
+    int preds[OUT_LAYER];
     float metric;
     printf("\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>training>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
     struct timespec start, finish; float duration;
@@ -163,8 +163,6 @@ void alexnet_train(alexnet *net, int epochs)
         // batch_X <-- images
         // batch_Y <-- labels 
         //
-        memset(batch_X, 0, BATCH_SIZE * sizeof(float) * IN_CHANNELS*FEATURE0_L*FEATURE0_L);
-        memset(batch_Y, 0, BATCH_SIZE * sizeof(float) * OUT_LAYER);
         get_random_batch(BATCH_SIZE, batch_X, batch_Y, FEATURE0_L, FEATURE0_L, IN_CHANNELS, OUT_LAYER);
         
         clock_gettime(CLOCK_MONOTONIC, &start);
@@ -176,19 +174,22 @@ void alexnet_train(alexnet *net, int epochs)
         printf("alexnet_forward duration: %.2fs \n", duration);
 
         for(int i=0; i<BATCH_SIZE; i++)
-        {
-            labels[i] = argmax(batch_Y+i*OUT_LAYER, OUT_LAYER);
             preds[i] = argmax(net->output+i*OUT_LAYER, OUT_LAYER);
-#ifdef SHOW_PREDCITION_DETAIL
-            printf("<<<< index%3d: label:%3d", i, labels[i]);
-            printf(" pred:%3d \n", preds[i]);
-#endif
-        }
-        metrics(&metric, preds, labels, OUT_LAYER, BATCH_SIZE, METRIC_ACCURACY);
-#ifdef SHOW_METRIC_EVALUTE
-        printf(">>>>>>At epoch %d, Accuracy on training batch data is %.2f\% \n\n", e+1, metric*100);
-#endif
 
+#ifdef SHOW_PREDCITION_DETAIL
+        printf("pred[ ");
+        for(int i=0; i<BATCH_SIZE; i++)
+        {
+            printf("%d ", preds[i]);
+        }
+        printf("]  label[ ");
+        for(int i=0; i<BATCH_SIZE; i++)
+        {
+            printf("%d ", batch_Y[i]);
+        }
+        printf("]\n");
+#endif
+        //metrics(&metric, preds, batch_Y, OUT_LAYER, BATCH_SIZE, METRIC_ACCURACY);
         clock_gettime(CLOCK_MONOTONIC, &start);
         alexnet_backward(net, batch_Y);
         clock_gettime(CLOCK_MONOTONIC, &finish);

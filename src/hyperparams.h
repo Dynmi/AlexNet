@@ -1,7 +1,6 @@
 #include <stdlib.h>
 
-#define BATCH_SIZE    12
-#define BETA          0.1
-#define LEARNING_RATE 0.01
-#define EPOCHS        64
-#define DROPOUT_PROB  0.4
+#define BATCH_SIZE    8
+#define LEARNING_RATE 0.0006
+#define EPOCHS        1024
+#define DROPOUT_PROB  0.2
