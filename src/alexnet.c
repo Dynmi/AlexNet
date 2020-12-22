@@ -1,875 +1,144 @@
 //
 // File:        alexnet.c
-// Description: Implemention of alexnet-related operations
+// Description: alexnet.c
 // Author:      Haris Wang
 //
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
-#include <pthread.h>
+#include <assert.h>
 #include "alexnet.h"
-#include "hyperparams.h"
-
-struct timespec start, finish; float duration;
 
 
-#define MAX(a,b) (((a) > (b)) ? (a) : (b))
-#define MIN(a,b) (((a) < (b)) ? (a) : (b))
-
-#define EPSILON 0.00001
-
-
-typedef struct conv_args{
-    conv_op *op;
-    int batch_id;
-    pthread_mutex_t *mtx;
-} conv_args;
-
-void img2col(float *img, float *col, conv_op *op)
-{
-    register int input_offset;
-    register int owoh = op->out_w * op->out_h;
-    register int iwih = op->in_w*op->in_h;
-    register int kk = op->kernel_size* op->kernel_size;
-    register int ikk = 0;
-    register float *input = img;
-    register float *x_col = col;
-    for(register unsigned short in_c=0; in_c<op->in_channels; in_c++)
-    {
-        register int st_x=0;
-        for(register unsigned short out_x=0; out_x<op->out_w; out_x++)
-        {
-            register int st_y=0;
-            for(register unsigned short out_y=0; out_y<op->out_h; out_y++)
-            {
-                register int x_offset = ikk;
-                int y_offset = out_x*out_y;
-                register int st_y_offset=0;
-                for(register unsigned short j=0; j<op->kernel_size; j++)
-                {
-                    register int st_x_offset=0;
-                    for(register unsigned short i=0; i<op->kernel_size; i++)
-                    {
-                        // input[in_c][st_x+st_x_offset][st_y+st_y_offset]
-                        register int x_col_offset = x_offset*owoh + y_offset;
-                        if(!(st_x+st_x_offset <op->in_w) | !(st_y+st_y_offset <op->in_h))
-                        {
-                            x_col[x_col_offset] = 0;
-                            continue;
-                        }
-                        input_offset = in_c*iwih + (st_x+st_x_offset)*op->in_h + st_y+st_y_offset;
-                        x_col[x_col_offset] = input[input_offset];
-
-                        x_offset++;
-                        st_x_offset++;
-                    }
-                    st_y_offset++;
-                }
-                st_y+= op->stride;
-            }
-            st_x+= op->stride;
-        }
-        ikk += kk;
-    }
-}
-
-void col2img(float *col, float *img, conv_op *op)
-{
-    register int input_offset;
-    register int owoh = op->out_w * op->out_h;
-    register int iwih = op->in_w*op->in_h;
-    register int kk = op->kernel_size* op->kernel_size;
-    register int ikk = 0;
-    register float *input = img;
-    register float *x_col = col;
-    for(register unsigned short in_c=0; in_c<op->in_channels; in_c++)
-    {
-        register int st_x=0;
-        for(register unsigned short out_x=0; out_x<op->out_w; out_x++)
-        {
-            register int st_y=0;
-            for(register unsigned short out_y=0; out_y<op->out_h; out_y++)
-            {
-                register int x_offset = ikk;
-                int y_offset = out_x*out_y;
-                register int st_y_offset=0;
-                for(register unsigned short j=0; j<op->kernel_size; j++)
-                {
-                    register int st_x_offset=0;
-                    for(register unsigned short i=0; i<op->kernel_size; i++)
-                    {
-                        // input[in_c][st_x+st_x_offset][st_y+st_y_offset]
-                        register int x_col_offset = x_offset*owoh + y_offset;
-                        if(!(st_x+st_x_offset <op->in_w) | !(st_y+st_y_offset <op->in_h))
-                        {
-                            continue;
-                        }
-                        input_offset = in_c*iwih + (st_x+st_x_offset)*op->in_h + st_y+st_y_offset;
-                        input[input_offset] = x_col[x_col_offset];
-
-                        x_offset++;
-                        st_x_offset++;
-                    }
-                    st_y_offset++;
-                }
-                st_y+= op->stride;
-            }
-            st_x+= op->stride;
-        }
-        ikk += kk;
-    }
-}
-
-void pthread_conv_op_forward(void *argv)
+void metrics(float *ret, int *preds, int *labels, 
+                int classes, int totNum, int type)
 {
     /**
-     * pthread conv_op_forward
-     * */
-    conv_args cp;
-    memcpy(&cp, (conv_args *)argv, sizeof(conv_args));
-
-    register float *x_col = cp.op->input_col + cp.batch_id * cp.op->in_units;
-    float *input = cp.op->input + cp.batch_id * cp.op->in_units;
-    img2col(input, x_col, cp.op);
-
-    register float *weights = cp.op->weights;
-    register float *output = cp.op->output + cp.batch_id * cp.op->out_units;
-    register int ikk = (cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size);
-    for(register int i=0; i<(cp.op->out_w * cp.op->out_h); i++)
-    {
-        register int output_offset = i*cp.op->out_channels;
-        register int w_offset = 0;
-        for(register unsigned short j=0; j<cp.op->out_channels; j++)
-        {
-            register int x_col_offset = ikk*i;
-            for(register int p=0; p<ikk; p++)
-            {
-                output[output_offset] += x_col[x_col_offset] * weights[w_offset];
-                w_offset++;
-                x_col_offset++;
-            }
-            output[output_offset] += cp.op->bias[j];
-
-            output_offset++;
-        }
-    }
-}
-
-void conv_op_forward(conv_op *op)
-{
-    /**
-     * conv2d forward
-     * 
-     * Input
-     *      op->input
-     *      op->weights
-     *      op->bias
-     * Output
-     *      op->output
-     * */
-    op->input_col = (float *)calloc(BATCH_SIZE*(op->in_channels * op->kernel_size* op->kernel_size)*(op->out_w * op->out_h), sizeof(float));
-    conv_args args[BATCH_SIZE+1];
-    pthread_t tid[BATCH_SIZE+1];
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        args[p].op = op;
-        args[p].batch_id = p;
-        pthread_create(&tid[p], NULL, pthread_conv_op_forward, (void *)(&args[p]));
-    }
-    
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        pthread_join(tid[p], NULL);
-    }
-
-}
-
-
-void pthread_conv_op_backward(void *argv)
-{
-    /**
-     * pthread conv_op_backward
-     * */
-    conv_args cp;
-    memcpy(&cp, (conv_args *)argv, sizeof(conv_args));
-
-    register float *in_error = cp.op->d_input;
-    register float *out_error = cp.op->d_output;
-    register float *w_deltas = cp.op->d_weights;
-    float *b_deltas = cp.op->d_bias;
-    register float *weights = cp.op->weights;
-
-    int A = cp.op->out_channels,
-        B = cp.op->in_channels * cp.op->kernel_size * cp.op->kernel_size, 
-        C = cp.op->out_w * cp.op->out_h;
-
-    register float *x_col = cp.op->input_col + cp.batch_id * B*C;
-
-    if( cp.batch_id == 0 )
-    {
-        float *x_col_error = (float *)calloc(C*B, sizeof(float));
-        for(register int i=0; i<A; i++)
-        {
-            for(register int p=0; p<C; p++)
-            {
-                for(register int j=0; j<B; j++)
-                {
-                    x_col_error[j*C+p] += out_error[i*C+p] * weights[i*B+j];
-                }
-
-                b_deltas[i] += out_error[i*C+p];
-            }
-        }
-        col2img(x_col_error, in_error, cp.op);
-        free(x_col_error);
-    }
-
-    for(register int i=0; i<A; i++)
-    {
-        for(register int j=0; j<B; j++)
-        {
-            // w[i][j]
-            for(register int p=0; p<C; p++)
-            {
-                register int w_offset = i*B+j;
-                register float tmp = out_error[i*C+p] * x_col[j*C+p];
-                pthread_mutex_lock( cp.mtx+w_offset );
-                w_deltas[w_offset] += tmp;
-                pthread_mutex_unlock( cp.mtx+w_offset ); 
-
-            }
-        }
-    }
-
-}
-
-void conv_op_backward(conv_op *op)
-{
-    /**
-     * conv2d backward
-     * 
-     * Input
-     *      op->d_output
-     * Output
-     *      op->d_weights
-     *      op->d_bias
-     *      op->d_input
-     * */
-    pthread_mutex_t *w_deltas_mtx = (pthread_mutex_t *)malloc(op->in_channels * op->out_channels * op->kernel_size * op->kernel_size * sizeof(pthread_mutex_t));
-    for(int i=0; i< op->in_channels * op->out_channels * op->kernel_size * op->kernel_size; i++)
-    {
-        pthread_mutex_init(w_deltas_mtx+i, NULL);
-    }
-
-    conv_args args[BATCH_SIZE+1];
-    pthread_t tid[BATCH_SIZE+1];
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        args[p].op = op;
-        args[p].batch_id = p;
-        args[p].mtx = w_deltas_mtx;
-        pthread_create(&tid[p], NULL, pthread_conv_op_backward, (void *)(&args[p]));
-    }
-
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        pthread_join(tid[p], NULL);
-    }
-    for(int i=0; i < op->in_channels * op->out_channels * op->kernel_size * op->kernel_size; i++)
-    {
-        op->d_weights[i] /= BATCH_SIZE;
-    }
-    free(op->input_col);
-    free(w_deltas_mtx);
-}
-
-
-typedef struct mp_args{
-    max_pooling_op *op;
-    int batch_id;
-} mp_args;
-
-void pthread_mp_op_forward(void *argv)
-{
-    mp_args mp;
-    memcpy(&mp, (mp_args *)argv, sizeof(mp_args));
-    register float *input = mp.op->input + mp.batch_id * mp.op->in_units;
-    register float *output = mp.op->output + mp.batch_id * mp.op->out_units;
-    int channels = mp.op->channels;
-    int strides = mp.op->stride;
-    int pool_size = mp.op->kernel_size;
-
-    register int o_x, o_y;
-    register int input_offset;
-    register int output_offset;
-    register int iwih = mp.op->in_w * mp.op->in_h;
-    register int owoh = mp.op->out_w * mp.op->out_h;
-
-    for (register int c = 0; c < channels; c++)
-    {
-        o_x=0;
-        for (int i = 0; i < mp.op->in_w-strides+1; i += strides)
-        {
-            o_y=0;
-            for (int j = 0; j < mp.op->in_h-strides+1; j += strides)
-            {
-                /**
-                 * inputs[i ~ i+pool_size][j ~ j+pool_size]
-                 * outputs[o_x][o_j]
-                 * */
-                input_offset = c*iwih +i*mp.op->in_h +j;
-                register float pixel = input[input_offset];
-                for (register int fx=i; fx<MIN(i+pool_size,mp.op->in_w); fx++)
-                {
-                    for (register int fy=j; fy<MIN(j+pool_size,mp.op->in_h); fy++)
-                    {                        
-                        pixel = MAX(pixel, input[fx*mp.op->in_h+fy]);
-                    }
-                }
-                output_offset = c*owoh + o_x + o_y*mp.op->out_w;
-                output[output_offset] = pixel;
-                o_y++;
-            }
-            o_x++;
-        }
-    }
-
-
-}
-
-void max_pooling_op_forward(max_pooling_op *op)
-{
-    mp_args args[BATCH_SIZE+1];
-    pthread_t tid[BATCH_SIZE+1];
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        args[p].op = op;
-        args[p].batch_id = p;
-        pthread_create(&tid[p], NULL, pthread_mp_op_forward, (void *)(&args[p]));
-    }
-    
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        pthread_join(tid[p], NULL);
-    }
-}
-
-
-void max_pooling_op_backward(max_pooling_op *op)
-{
-    float *in_error = op->d_input;
-    float *out_error = op->d_output;
-    float *input = op->input;
-    int channels = op->channels;
-    int pool_size = op->kernel_size;
-
-    int in_w = op->in_w; int in_h = op->in_h;
-    int out_w = op->out_w; int out_h = op->out_h;
-    
-    int in_x, in_y;
-    float max_value, cur_value;
-    int x, y;
-    int in_shift, out_shift;
-    for (int c=0; c<channels; c++)
-    {
-        for (int i=0; i < op->out_w; i++)
-        {
-            for (int j=0; j < op->out_h; j++)
-            {
-                for (int p=0; p<BATCH_SIZE; p++)
-                {
-                    //
-                    // output[p][c][i][j]
-                    //
-                    x = i*pool_size;    
-                    y = j*pool_size;
-                    max_value = -1111111;
-                    while ( x<MIN((i + 1) * pool_size, in_w) )
-                    {
-                        while ( y<MIN((j + 1) * pool_size, in_h) )
-                        {
-                            cur_value = input[p*channels*in_w*in_h + c*in_w*in_h + y*in_w + x];
-                            if(cur_value>max_value)
-                            {
-                                max_value = cur_value;
-                                in_x = x;
-                                in_y = y;
-                            }
-                            y++;
-                        }
-                        x++;
-                    }
-                    
-                    in_shift = c*in_w*in_h + in_y*in_w + in_x;
-                    out_shift = c*out_w*out_h + j*out_w + i;
-                    in_error[in_shift] += out_error[out_shift] / BATCH_SIZE;
-                }
-            }
-        }
-    }
-
-}
-
-
-typedef struct fc_args{
-    fc_op *op;
-    int batch_id;
-    pthread_mutex_t *mtx;
-} fc_args;
-
-void pthread_fc_op_forward(void *argv)
-{
-    /**
-     * pthread fc_op_forward
-     * */
-    fc_args args;
-    memcpy(&args, (fc_args *)argv, sizeof(fc_args));
-
-    register float *input = args.op->input + args.batch_id * args.op->in_units;
-    register float *output = args.op->output + args.batch_id * args.op->out_units;
-    register float *weights = args.op->weights;
-    register float *bias = args.op->bias;
-
-    register int w_offset = 0;
-    for (register int i = 0; i < args.op->in_units; i++)
-    {
-        if (input[i]<0.00001)
-        {
-            w_offset+=args.op->out_units;
-            continue;
-        }
-        for (register int j = 0; j < args.op->out_units; j++)
-        {
-            output[j] += input[i] * weights[w_offset];
-            w_offset++;
-        }
-    }
-
-    for (register int j = 0; j < args.op->out_units; j++)
-        output[j] += bias[j];
-
-}
-
-void fc_op_forward(fc_op *op)
-{
-    fc_args fp[BATCH_SIZE];
-    pthread_t tid[BATCH_SIZE+1];
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        fp[p].op = op;
-        fp[p].batch_id = p;
-        pthread_create(&tid[p], NULL, pthread_fc_op_forward, (void *)(&fp[p]));
-    }
-    for(int p=0; p<BATCH_SIZE; p++)
-        pthread_join(tid[p], NULL);
-}
-
-
-void pthread_fc_op_backward(void *argv)
-{
-    /**
-     * pthread fc_op_backward
-     * */
-    fc_args args;
-    memcpy(&args, (fc_args *)argv, sizeof(fc_args));
-
-    register float *input = args.op->input + args.batch_id * args.op->in_units;
-    register float *weights = args.op->weights;
-    register float *bias = args.op->bias;
-    int in_units = args.op->in_units;
-    int out_units = args.op->out_units;
-    register float *in_error = args.op->d_input;
-    register float *out_error = args.op->d_output;
-    register float *w_deltas = args.op->d_weights;
-    register float *b_deltas = args.op->d_bias;
-    
-    int p = args.batch_id;
-
-    unsigned int w_offset;
-
-    if(p==0)
-    {
-        for (register int j=0; j<out_units; j++)
-        {
-            for (register int i=0; i<in_units; i++)
-            {
-                w_offset = i*out_units + j;
-                in_error[i] += weights[w_offset] * out_error[j];
-            }
-            b_deltas[p] = out_error[p];
-        }
-    }
-
-    for (register int i=0; i<in_units; i++)
-    {
-        for (register int j=0; j<out_units; j++)
-        {
-            w_offset = i*out_units + j;
-            register float tmp = input[i] * out_error[j];
-
-            pthread_mutex_lock( args.mtx+w_offset );
-            w_deltas[w_offset] += tmp;
-            pthread_mutex_unlock( args.mtx+w_offset );
-        }
-    }
-
-}
-
-void fc_op_backward(fc_op *op)
-{
-    pthread_mutex_t *w_deltas_mtx = (pthread_mutex_t *)malloc(op->in_units * op->out_units * sizeof(pthread_mutex_t));
-    for(int i=0; i< op->in_units * op->out_units; i++)
-    {
-        pthread_mutex_init(w_deltas_mtx+i, NULL);
-    }
-
-    conv_args args[BATCH_SIZE+1];
-    pthread_t tid[BATCH_SIZE+1];
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        args[p].op = op;
-        args[p].batch_id = p;
-        args[p].mtx = w_deltas_mtx;
-        pthread_create(&tid[p], NULL, pthread_fc_op_backward, (void *)(&args[p]));
-    }
-
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        pthread_join(tid[p], NULL);
-    }
-
-    for(int i=0; i < op->in_units*op->out_units; i++)
-    {
-        op->d_weights[i] /= BATCH_SIZE;
-    }
-
-    free(w_deltas_mtx);
-}
-
-
-void batch_norm_op_forward(batch_norm_op *op)
-{
-    register float *input = op->input;
-    register float *output = op->output;
-    register float *beta = op->beta;
-    register float *gamma = op->gamma;
-    register int units = op->units;
-
-    op->avg = (float *)calloc(units, sizeof(float));
-    op->var = (float *)calloc(units, sizeof(float));
-    op->x_norm = (float *)malloc(sizeof(float) * BATCH_SIZE * units);
-
-    register int i;
-    register int p;
-    // calculate mean for each unit along batch axis
-    for (i = 0; i < units; i++)
-    {
-        for (p = 0; p < BATCH_SIZE; p++)
-            op->avg[i] += input[p*units + i];
-        op->avg[i] /= BATCH_SIZE;
-    }
-
-    // calculate variance for each unit along batch axis
-    for (i = 0; i < units; i++)
-    {
-        for (p = 0; p < BATCH_SIZE; p++)
-            op->var[i] += (input[p*units + i] - op->avg[i]) * (input[p*units + i] - op->avg[i]);
-        op->var[i] /= BATCH_SIZE;
-    }
-
-    for (i = 0; i < units; i++)
-    {
-        for (p = 0; p < BATCH_SIZE; p++)
-        {
-            op->x_norm[p*units+i] = (input[p*units + i] - op->avg[i]) / sqrt(op->var[i] + EPSILON); 
-            output[p*units+i] = gamma[i] * op->x_norm[p*units+i] + beta[i];
-            //output[p*units+i] = op->x_norm[p*units+i];
-        }
-    }
-}
-
-
-void batch_norm_op_backward(batch_norm_op *op)
-{
-    float *in_error = op->d_input;
-    float *out_error = op->d_output;
-    float *delta_gamma = op->d_gamma;
-    float *delta_beta = op->d_beta;
-    float *gamma = op->gamma;
-    int units = op->units;
-
-    float *x_norm_avg = (float *)calloc(units, sizeof(float));
-    float nn = 1.0 / BATCH_SIZE;
-    for (int i = 0; i < units; i++)
-    {
-        for(int p=0; p<BATCH_SIZE; p++)
-            delta_gamma[i] += op->x_norm[p*units+i] * out_error[i];
-        delta_gamma[i] /= BATCH_SIZE;
-
-        delta_beta[i] += out_error[i];
-
-        for(int p=0; p<BATCH_SIZE; p++)
-            x_norm_avg[i] += op->x_norm[p*units+i];
-        x_norm_avg[i] /= BATCH_SIZE;
-    }
-
-    for (int i = 0; i < units; i++)
-    {
-        in_error[i] = 0 - gamma[i] * out_error[i] * x_norm_avg[i] / sqrt(op->var[i]+EPSILON) ; 
-        //in_error[i] = out_error[i];
-    } 
-    free(x_norm_avg);
-    free(op->avg);
-    free(op->var);
-    free(op->x_norm);
-}
-
-
-void relu_op_forward(nonlinear_op *op)
-{
-    for (int p = 0; p < BATCH_SIZE; p++)
-    {
-        for (int i = 0; i < (op->units); i++)
-        {
-            op->output[p*(op->units)+i] = op->input[p*(op->units)+i] * (op->input[p*(op->units)+i]>0);
-        }
-    }
-}
-
-
-void relu_op_backward(nonlinear_op *op)
-{
-    float tmp;
-    for (int i = 0; i < (op->units); i++)
-    {
-        tmp=0;
-        for (int p = 0; p < BATCH_SIZE; p++)
-            tmp += (op->input[p*(op->units)+i] > 0);
-        tmp /= BATCH_SIZE;
-
-        op->d_input[i] = op->d_output[i] * tmp;
-    }
-}
-
-
-void sigmoid_op_forward(nonlinear_op *op)
-{
-    for (int p=0; p<BATCH_SIZE; p++)
-    {
-        for (int i = 0; i < (op->units); i++)
-        {
-            op->output[p*(op->units)+i] = 1.0 / ( 1.0 + exp( 0.0 - op->input[p*(op->units)+i] ) );
-        }
-    }
-}
-
-
-void sigmoid_op_backward(nonlinear_op *op)
-{
-    float tmp;
-    for (int i = 0; i < (op->units); i++)
-    {
-        tmp=0;
-        for (int p = 0; p < BATCH_SIZE; p++)
-            tmp += op->output[p*(op->units)+i] * (1 - op->output[p*(op->units)+i]);
-        tmp /= BATCH_SIZE;
-
-        op->d_input[i] = op->d_output[i] * tmp;
-    }
-}
-
-void softmax_op_forward(nonlinear_op *op)
-{
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        float esum=0;
-        for(int i=0; i< op->units; i++)
-            esum += exp( op->input[i + p * op->units]); 
-
-        for(int i=0; i< op->units; i++)
-            op->output[i + p * op->units] = exp( op->input[i + p * op->units]) / esum;       
-    }
-}
-
-void softmax_op_backward(nonlinear_op *op)
-{
-    for(int i=0; i< op->units; i++)
-    {
-        for(int j=0; j< op->units; j++)
-        {
-            if(i==j){
-                op->d_input[j] += op->d_output[j] * (1 - op->d_output[i]);
-            }else{
-                op->d_input[j] -= op->d_output[j] * op->d_output[i];
-            }
-        }
-    }
-
-    for(int i=0; i< op->units; i++)
-    {
-        op->d_input[i] /= op->units;
-    }
-}
-
-
-void cross_entropy_loss(float *delta_preds, const float *preds, const int *labels, int units)
-{
-    /**
-     * Cross Entropy backward
-     * 
-     * Input
-     *      preds   [BATCH_SIZE, units]
-     *      labels  [BATCH_SIZE]
-     * Output
-     *      delta_preds [units]
-     * */
-    float ce_loss = 0;
-    for(int p=0; p<BATCH_SIZE; p++)
-    {
-        float esum = 0;
-        for(int i=0; i<units; i++)
-        {
-            esum += exp(preds[i+p*units]);
-        }
-
-        ce_loss += 0-log(exp(preds[labels[p]+p*units]) / esum);
-
-        for(int i=0; i<units; i++)
-        {
-            // preds[i+p*units]
-            if(labels[p]==i)
-            {
-                delta_preds[i] += exp(preds[i+p*units]) / esum - 1;
-            }else{
-                delta_preds[i] += exp(preds[i+p*units]) / esum;
-            } 
-        }
-    }
-    ce_loss /= BATCH_SIZE;
-    printf("cross entropy loss on batch data is %f \n", ce_loss);
-
-    for(int i=0; i<units; i++)
-    {
-        delta_preds[i] /= BATCH_SIZE;
-        //printf("delta_preds%d  %f \n", i, delta_preds[i]);
-    }
-}
-
-
-void dropout(float *x, float prob, int units)
-{
-    /**
-     * dropout regularization
+     * Compute metric on 'preds' and 'labels'
      * 
      * Input:
-     *      x   [BATCH_SIZE, units]
-     *      prob    prob~(0,1)
+     *      preds   [totNum]
+     *      labels  [totNum]
+     *      classes 
+     *      totNum
+     *      type    
      * Output:
-     *      x   [BATCH_SIZE, units]
+     *      ret     
      * */
-    for(int p=0; p<BATCH_SIZE; p++)
+
+    int *totPred  = (int *)malloc(classes * sizeof(int)),
+        *totLabel = (int *)malloc(classes * sizeof(int)),
+        *TP       = (int *)malloc(classes * sizeof(int));
+    memset(totPred, 0, classes * sizeof(int));
+    memset(totLabel, 0, classes * sizeof(int));
+    memset(TP, 0, classes * sizeof(int));
+
+    for(int p=0; p<totNum; p++)
     {
-        for(int i=0; i<units; i++)
+        totPred[preds[p]]++;
+        totLabel[labels[p]]++;
+        if(preds[p]==labels[p])
         {
-            if(rand()%100 < prob*100)
-                x[p*units+i] = 0;
+            TP[preds[p]]++;
         }
     }
+
+    int tmp_a=0, tmp_b=0;
+    for(int p=0; p<classes; p++)
+    {
+        tmp_a += TP[p];
+    }
+    float accuracy = tmp_a * 1.0 / totNum;
+
+    if(type==METRIC_ACCURACY)
+    {
+        *ret = accuracy;
+        free(totPred);
+        free(totLabel);
+        free(TP);
+        return;
+    }
+
+    float precisions[classes];
+    float macro_p = 0;
+    for(int p=0; p<classes; p++)
+    {
+        precisions[p] = TP[p] / totLabel[p];
+        macro_p += precisions[p];
+    }
+    macro_p /= classes;
+
+    if(type==METRIC_PRECISION)
+    {
+        *ret = macro_p;
+        free(totPred);
+        free(totLabel);
+        free(TP);
+        return;
+    }
+
+    float recalls[classes];
+    float macro_r = 0;
+    for(int p=0; p<classes; p++)
+    {
+        recalls[p] = TP[p] / totPred[p];
+        macro_r += recalls[p];
+    }
+    macro_r /= classes;
+
+    if(type==METRIC_RECALL)
+    {
+        *ret = macro_r;
+        free(totPred);
+        free(totLabel);
+        free(TP);
+        return;
+    }
+
+    if(type==METRIC_F1SCORE)
+    {
+        *ret = 2*macro_p*macro_r / (macro_p+macro_r);
+        free(totPred);
+        free(totLabel);
+        free(TP);
+        return;
+    }
+
+    free(totPred);
+    free(totLabel);
+    free(TP);
 }
 
 
-static float v_conv1_weights[C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L];
-static float v_conv2_weights[C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L];
-static float v_conv3_weights[C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L];
-static float v_conv4_weights[C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L];
-static float v_conv5_weights[C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L];
-static float v_fc1_weights[C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L];
-static float v_fc2_weights[FC6_LAYER*FC7_LAYER];
-static float v_fc3_weights[FC7_LAYER*OUT_LAYER];
-
-static float v_conv1_bias[C1_CHANNELS];
-static float v_conv2_bias[C2_CHANNELS];
-static float v_conv3_bias[C3_CHANNELS];
-static float v_conv4_bias[C4_CHANNELS];
-static float v_conv5_bias[C5_CHANNELS];
-static float v_fc1_bias[FC6_LAYER];
-static float v_fc2_bias[FC7_LAYER];
-static float v_fc3_bias[OUT_LAYER];
-
-static float v_bn1_gamma[C1_CHANNELS*FEATURE1_L*FEATURE1_L];
-static float v_bn2_gamma[C2_CHANNELS*FEATURE2_L*FEATURE2_L];
-static float v_bn3_gamma[C3_CHANNELS*FEATURE3_L*FEATURE3_L];
-static float v_bn4_gamma[C4_CHANNELS*FEATURE4_L*FEATURE4_L];
-static float v_bn5_gamma[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
-static float v_bn1_beta[C1_CHANNELS*FEATURE1_L*FEATURE1_L];
-static float v_bn2_beta[C2_CHANNELS*FEATURE2_L*FEATURE2_L];
-static float v_bn3_beta[C3_CHANNELS*FEATURE3_L*FEATURE3_L];
-static float v_bn4_beta[C4_CHANNELS*FEATURE4_L*FEATURE4_L];
-static float v_bn5_beta[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
-
-
-void clip(float *x, float down, float up)
-{
-    *x = MIN(up, MAX(down, *x));
-}
-
-void momentum_sgd(float *w, float *v_w, float *d_w, int units)
+int argmax(float *arr, int n)
 {
     /**
-     * momentum stochastic gradient descent
+     * Return the index of max-value among arr ~ arr+n
      * 
-     * Input
-     *      w   [units]
-     *      v_w [units]
-     *      d_w [units]
-     * Output
-     *      w   [units]
-     *      v_w [units]
-     * */     
-    for(int i=0; i<units; i++)
+     * Input:
+     *      arr
+     * Output:
+     * Return:
+     *      the index of max-value
+     * */ 
+    int idx = -1;
+    float max = -11111111;
+    for(int p=0; p<n; p++)
     {
-        v_w[i] = 0.2 * v_w[i] - 0.8 * LEARNING_RATE * d_w[i];
-        clip(v_w+i, -1, 1);
-        w[i] = w[i] + v_w[i];
+        if(arr[p] > max)
+        {
+            idx = p;
+            max = arr[p];
+        }
     }
+    assert(idx!=-1);
+    return idx;
 }
 
 
-void update_params(alexnet *net)
-{
-    momentum_sgd(net->conv1.weights, v_conv1_weights, net->conv1.d_weights, C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L);
-    momentum_sgd(net->conv2.weights, v_conv2_weights, net->conv2.d_weights, C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L);
-    momentum_sgd(net->conv3.weights, v_conv3_weights, net->conv3.d_weights, C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L);
-    momentum_sgd(net->conv4.weights, v_conv4_weights, net->conv4.d_weights, C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L);
-    momentum_sgd(net->conv5.weights, v_conv5_weights, net->conv5.d_weights, C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L);
-    momentum_sgd(net->fc1.weights,   v_fc1_weights,   net->fc1.d_weights,   C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L);
-    momentum_sgd(net->fc2.weights,   v_fc2_weights,   net->fc2.d_weights,   FC6_LAYER*FC7_LAYER);
-    momentum_sgd(net->fc3.weights,   v_fc3_weights,   net->fc3.d_weights,   FC7_LAYER*OUT_LAYER);
-
-    momentum_sgd(net->conv1.bias,   v_conv1_bias,   net->conv1.d_bias, C1_CHANNELS);
-    momentum_sgd(net->conv2.bias,   v_conv2_bias,   net->conv2.d_bias, C2_CHANNELS);
-    momentum_sgd(net->conv3.bias,   v_conv3_bias,   net->conv3.d_bias, C3_CHANNELS);
-    momentum_sgd(net->conv4.bias,   v_conv4_bias,   net->conv4.d_bias, C4_CHANNELS);
-    momentum_sgd(net->conv5.bias,   v_conv5_bias,   net->conv5.d_bias, C5_CHANNELS);
-    momentum_sgd(net->fc1.bias,     v_fc1_bias,     net->fc1.d_bias,   FC6_LAYER);
-    momentum_sgd(net->fc2.bias,     v_fc2_bias,     net->fc2.d_bias,   FC7_LAYER);
-    momentum_sgd(net->fc3.bias,     v_fc3_bias,     net->fc3.d_bias,   OUT_LAYER);
-
-    momentum_sgd(net->bn1.gamma,     v_bn1_gamma,     net->bn1.d_gamma,   OUT_LAYER);
-    momentum_sgd(net->bn1.gamma,     v_bn1_gamma,     net->bn1.d_gamma,   OUT_LAYER);
-    momentum_sgd(net->bn1.gamma,     v_bn1_gamma,     net->bn1.d_gamma,   OUT_LAYER);
-    momentum_sgd(net->bn1.gamma,     v_bn1_gamma,     net->bn1.d_gamma,   OUT_LAYER);
-    momentum_sgd(net->bn1.gamma,     v_bn1_gamma,     net->bn1.d_gamma,   OUT_LAYER);
-
-    momentum_sgd(net->bn1.beta,     v_bn1_beta,     net->bn1.d_beta,   OUT_LAYER);
-    momentum_sgd(net->bn1.beta,     v_bn1_beta,     net->bn1.d_beta,   OUT_LAYER);
-    momentum_sgd(net->bn1.beta,     v_bn1_beta,     net->bn1.d_beta,   OUT_LAYER);
-    momentum_sgd(net->bn1.beta,     v_bn1_beta,     net->bn1.d_beta,   OUT_LAYER);
-    momentum_sgd(net->bn1.beta,     v_bn1_beta,     net->bn1.d_beta,   OUT_LAYER);
-}
-
-
-void alexnet_forward(alexnet *net)
+static struct timespec start, finish; 
+static float duration;
+void forward_alexnet(alexnet *net)
 {
     net->conv1.input = net->input;
 
@@ -877,19 +146,19 @@ void alexnet_forward(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->conv1.output = (float *)calloc(BATCH_SIZE * net->conv1.out_units, sizeof(float));
+    net->conv1.output = (float *)calloc(net->batchsize * net->conv1.out_units, sizeof(float));
     conv_op_forward(&(net->conv1));
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv1) duration: %.4fs \n", duration);
+    printf(" forward (&(net->conv1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->bn1.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->bn1.units);
+    net->bn1.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn1.units);
     net->bn1.input = net->conv1.output;
     batch_norm_op_forward(&(net->bn1));
 #ifdef SHOW_OP_TIME
@@ -899,45 +168,27 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->bn1)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->bn1.units * BATCH_SIZE; p++)
+/*     for(int p=0; p< net->bn1.units * net->batchsize; p++)
     {
         if(net->bn1.output[p]<(0-10) | net->bn1.output[p]>10 )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm1 error !!!  %f\n", net->bn1.output[p]);
         }
-    }
+    } */
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu1.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu1.units);
+    net->relu1.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu1.units);
     net->relu1.input = net->bn1.output;
     relu_op_forward(&(net->relu1));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu1)) duration: %.4fs \n", duration);
-#endif
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp1.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->mp1.out_units);
+    net->mp1.output = (float *)malloc(net->batchsize * sizeof(float) * net->mp1.out_units);
     net->mp1.input = net->relu1.output;
     max_pooling_op_forward(&(net->mp1));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp1)) duration: %.4fs \n", duration);
-#endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv2>>>>>>>>>>>>>>>>>>>>>>>>> \n");
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->conv2.output = (float *)calloc(BATCH_SIZE * net->conv2.out_units, sizeof(float));
+    net->conv2.output = (float *)calloc(net->batchsize * net->conv2.out_units, sizeof(float));
     net->conv2.input = net->mp1.output;
     conv_op_forward(&(net->conv2));
 #ifdef SHOW_OP_TIME
@@ -950,7 +201,7 @@ void alexnet_forward(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->bn2.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->bn2.units);
+    net->bn2.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn2.units);
     net->bn2.input = net->conv2.output;
     batch_norm_op_forward(&(net->bn2));
 #ifdef SHOW_OP_TIME
@@ -960,45 +211,27 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->bn2)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->bn2.units * BATCH_SIZE; p++)
+/*     for(int p=0; p< net->bn2.units * net->batchsize; p++)
     {
         if(net->bn2.output[p]<(0-10) | net->bn2.output[p]>10 )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm2 error !!! %f\n", net->bn2.output[p]);
         }
-    }
+    } */
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu2.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu2.units);
+    net->relu2.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu2.units);
     net->relu2.input = net->bn2.output;
     relu_op_forward(&(net->relu2));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu2)) duration: %.4fs \n", duration);
-#endif
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp2.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->mp2.out_units);
+    net->mp2.output = (float *)malloc(net->batchsize * sizeof(float) * net->mp2.out_units);
     net->mp2.input = net->relu2.output;
     max_pooling_op_forward(&(net->mp2));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp2)) duration: %.4fs \n", duration);
-#endif
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
     //printf(">>>>>>>>>>>>>>>>>>conv3>>>>>>>>>>>>>>>>>>>>>>>>> \n");
-    net->conv3.output = (float *)calloc(BATCH_SIZE * net->conv3.out_units, sizeof(float));
+    net->conv3.output = (float *)calloc(net->batchsize * net->conv3.out_units, sizeof(float));
     net->conv3.input = net->mp2.output;
     conv_op_forward(&(net->conv3));
 #ifdef SHOW_OP_TIME
@@ -1011,7 +244,7 @@ void alexnet_forward(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->bn3.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->bn3.units);
+    net->bn3.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn3.units);
     net->bn3.input = net->conv3.output;
     batch_norm_op_forward(&(net->bn3));
 #ifdef SHOW_OP_TIME
@@ -1021,32 +254,23 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->bn3)); duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->bn3.units * BATCH_SIZE; p++)
+/*     for(int p=0; p< net->bn3.units * net->batchsize; p++)
     {
         if(net->bn3.output[p]<(0-10) | net->bn3.output[p]>10 )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm3 error !!! %f \n", net->bn3.output[p]);
         }
     }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu3.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu3.units);
+ */
+    net->relu3.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu3.units);
     net->relu3.input = net->bn3.output;
     relu_op_forward(&(net->relu3));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu3)) duration: %.4fs \n", duration);
-#endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv4>>>>>>>>>>>>>>>>>>>>>>>>> \n");
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->conv4.output = (float *)calloc(BATCH_SIZE * net->conv4.out_units, sizeof(float));
+    net->conv4.output = (float *)calloc(net->batchsize * net->conv4.out_units, sizeof(float));
     net->conv4.input = net->relu3.output;
     conv_op_forward(&(net->conv4));
 #ifdef SHOW_OP_TIME
@@ -1059,7 +283,7 @@ void alexnet_forward(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->bn4.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->bn4.units);
+    net->bn4.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn4.units);
     net->bn4.input = net->conv4.output;
     batch_norm_op_forward(&(net->bn4));
 #ifdef SHOW_OP_TIME
@@ -1069,32 +293,23 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->bn4)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->bn4.units * BATCH_SIZE; p++)
+/*     for(int p=0; p< net->bn4.units * net->batchsize; p++)
     {
         if(net->bn4.output[p]<(0-10) | net->bn4.output[p]>10 )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm4 error !!! %f\n", net->bn4.output[p]);
         }
-    }
+    } */
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu4.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu4.units);
+    net->relu4.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu4.units);
     net->relu4.input = net->bn4.output;
     relu_op_forward(&(net->relu4));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu4)) duration: %.4fs \n", duration);
-#endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv5>>>>>>>>>>>>>>>>>>>>>>>>> \n");
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->conv5.output = (float *)calloc(BATCH_SIZE * net->conv5.out_units, sizeof(float));
+    net->conv5.output = (float *)calloc(net->batchsize * net->conv5.out_units, sizeof(float));
     net->conv5.input = net->relu4.output;
     conv_op_forward(&(net->conv5));
 #ifdef SHOW_OP_TIME
@@ -1107,7 +322,7 @@ void alexnet_forward(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->bn5.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->bn5.units);
+    net->bn5.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn5.units);
     net->bn5.input = net->conv5.output;
     batch_norm_op_forward(&(net->bn5));
 #ifdef SHOW_OP_TIME
@@ -1117,46 +332,30 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->bn5)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->bn5.units * BATCH_SIZE; p++)
+/*     for(int p=0; p< net->bn5.units * net->batchsize; p++)
     {
         if(net->bn5.output[p]<(0-10) | net->bn5.output[p]>10 )
         {
             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm5 error !!! %f\n", net->bn5.output[p]);
         }
-    }
+    } */
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu5.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu5.units);
+
+    net->relu5.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu5.units);
     net->relu5.input = net->bn5.output;
     relu_op_forward(&(net->relu5));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu5)) duration: %.4fs \n", duration);
-#endif
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp5.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->mp5.out_units);
+    net->mp5.output = (float *)malloc(net->batchsize * sizeof(float) * net->mp5.out_units);
     net->mp5.input = net->relu5.output;
     max_pooling_op_forward(&(net->mp5));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp5)) duration: %.4fs \n", duration);
-#endif
+
 
     dropout(net->mp5.output, DROPOUT_PROB, net->mp5.out_units);
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->fc1.output = (float *)calloc(BATCH_SIZE * net->fc1.out_units, sizeof(float));
+    net->fc1.output = (float *)calloc(net->batchsize * net->fc1.out_units, sizeof(float));
     net->fc1.input = net->mp5.output;
     fc_op_forward(&(net->fc1));
 #ifdef SHOW_OP_TIME
@@ -1166,43 +365,16 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->fc1)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->fc1.out_units * BATCH_SIZE; p++)
-    {
-        if(net->fc1.output[p]<(0-64) | net->fc1.output[p]>64)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: fc1 error !!! %d <%.4f> \n", p, net->fc1.output[p]);
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu6.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu6.units);
+    net->relu6.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu6.units);
     net->relu6.input = net->fc1.output;
     relu_op_forward(&(net->relu6));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu6)) duration: %.4fs \n", duration);
-#endif
-    
-    dropout(net->relu6.output, DROPOUT_PROB, net->relu6.units);
 
-    for(int p=0; p< net->relu6.units * BATCH_SIZE; p++)
-    {
-        if(net->relu6.output[p]<0)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: relu6 error !!! \n");
-            break;
-        }
-    }
+    dropout(net->relu6.output, DROPOUT_PROB, net->relu6.units);
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->fc2.output = (float *)calloc(BATCH_SIZE * net->fc2.out_units, sizeof(float));
+    net->fc2.output = (float *)calloc(net->batchsize * net->fc2.out_units, sizeof(float));
     net->fc2.input = net->fc1.output;
     fc_op_forward(&(net->fc2));
 #ifdef SHOW_OP_TIME
@@ -1212,7 +384,7 @@ void alexnet_forward(alexnet *net)
     printf(" forward (&(net->fc2)) duration: %.4fs \n", duration);
 #endif
 
-    for(int p=0; p< net->fc2.out_units * BATCH_SIZE; p++)
+    for(int p=0; p< net->fc2.out_units * net->batchsize; p++)
     {
         if(net->fc2.output[p]<(0-64) | net->fc2.output[p]>64)
         {
@@ -1221,32 +393,14 @@ void alexnet_forward(alexnet *net)
         }
     }
 
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu7.output = (float *)malloc(BATCH_SIZE * sizeof(float) * net->relu7.units);
+    net->relu7.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu7.units);
     net->relu7.input = net->fc2.output;
     relu_op_forward(&(net->relu7));
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu7)) duration: %.4fs \n", duration);
-#endif
-    
-    for(int p=0; p< net->relu7.units * BATCH_SIZE; p++)
-    {
-        if(net->relu7.output[p]<0)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: relu7 error !!! \n");
-            break;
-        }
-    }
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
-    net->fc3.output = (float *)calloc(BATCH_SIZE * net->fc3.out_units, sizeof(float));
+    net->fc3.output = (float *)calloc(net->batchsize * net->fc3.out_units, sizeof(float));
     net->fc3.input = net->fc2.output;
     fc_op_forward(&(net->fc3));
 #ifdef SHOW_OP_TIME
@@ -1260,461 +414,8 @@ void alexnet_forward(alexnet *net)
 }
 
 
-void alexnet_backward(alexnet *net, int *batch_Y)
+void malloc_alexnet(alexnet *net)
 {
-    alexnet_calloc_d_params(net);
-
-    net->fc3.d_output = (float *)calloc(net->fc3.out_units, sizeof(float));
-    cross_entropy_loss(net->fc3.d_output, net->output, batch_Y, OUT_LAYER);
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward cross_entropy duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->fc3.d_input = (float *)calloc(net->fc3.in_units, sizeof(float));
-    fc_op_backward(&(net->fc3));
-    free(net->fc3.d_output);
-    free(net->fc3.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc3)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu7.d_input = (float *)calloc(net->relu7.units, sizeof(float));
-    net->relu7.d_output = net->fc3.d_input;
-    relu_op_backward(&(net->relu7));
-    free(net->relu7.d_output);
-    free(net->relu7.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu7)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->fc2.d_input = (float *)calloc(net->fc2.in_units, sizeof(float));
-    net->fc2.d_output = net->relu7.d_input;
-    fc_op_backward(&(net->fc2));
-    free(net->fc2.d_output);
-    free(net->fc2.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc2)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu6.d_input = (float *)calloc(net->relu6.units, sizeof(float));
-    net->relu6.d_output = net->fc2.d_input;
-    relu_op_backward(&(net->relu6));
-    free(net->relu6.d_output);
-    free(net->relu6.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu6)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->fc1.d_input = (float *)calloc(net->fc1.in_units, sizeof(float));
-    net->fc1.d_output = net->relu6.d_input;
-    fc_op_backward(&(net->fc1));
-    free(net->fc1.d_output);
-    free(net->fc1.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc1)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp5.d_input = (float *)calloc(net->mp5.in_units, sizeof(float));
-    net->mp5.d_output = net->fc1.d_input;
-    max_pooling_op_backward(&(net->mp5));
-    free(net->mp5.d_output);
-    free(net->mp5.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp5)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu5.d_input = (float *)calloc(net->relu5.units, sizeof(float));
-    net->relu5.d_output = net->mp5.d_input;
-    relu_op_backward(&(net->relu5));
-    free(net->relu5.d_output);
-    free(net->relu5.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu5)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->bn5.d_input = (float *)calloc(net->bn5.units, sizeof(float));
-    net->bn5.d_output = net->relu5.d_input;
-    batch_norm_op_backward(&(net->bn5));
-    free(net->bn5.d_output);
-    free(net->bn5.output);
-    for(int i=0; i< net->bn5.units; i++)
-    {
-        if(net->bn5.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! bn5  %f\n",net->bn5.d_input[i]);
-            exit(-1);            
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn5)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->conv5.d_input = (float *)calloc(net->conv5.in_units, sizeof(float));
-    net->conv5.d_output = net->bn5.d_input;
-    conv_op_backward(&(net->conv5));
-    free(net->conv5.d_output);
-    free(net->conv5.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv5)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu4.d_input = (float *)calloc(net->relu4.units, sizeof(float));
-    net->relu4.d_output = net->conv5.d_input;
-    relu_op_backward(&(net->relu4));
-    for(int i=0; i< net->relu4.units; i++)
-    {
-        if(net->relu4.d_output[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! delta:relu4  %.2f\n",net->relu4.d_output[i]);
-            break;
-        }
-    }
-    free(net->relu4.d_output);
-    free(net->relu4.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu4)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->bn4.d_input = (float *)calloc(net->bn4.units, sizeof(float));
-    net->bn4.d_output = net->relu4.d_input;
-    batch_norm_op_backward(&(net->bn4));
-    free(net->bn4.d_output);
-    free(net->bn4.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn4)) duration: %.4fs \n", duration);
-#endif
-
-    for(int i=0; i< net->bn4.units; i++)
-    {
-        if(net->bn4.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! bn4  %f\n",net->bn4.d_input[i]);
-            exit(-1);            
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->conv4.d_input = (float *)calloc(net->conv4.in_units, sizeof(float));
-    net->conv4.d_output = net->bn4.d_input;
-    conv_op_backward(&(net->conv4));
-    free(net->conv4.d_output);
-    free(net->conv4.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv4)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu3.d_input = (float *)calloc(net->relu3.units, sizeof(float));
-    net->relu3.d_output = net->conv4.d_input;
-    relu_op_backward(&(net->relu3));
-    for(int i=0; i< net->relu3.units; i++)
-    {
-        if(net->relu3.d_output[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! delta:relu3  %.2f\n",net->relu3.d_output[i]);
-            break;
-        }
-    }
-    free(net->relu3.d_output);
-    free(net->relu3.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu3)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->bn3.d_input = (float *)calloc(net->bn3.units, sizeof(float));
-    net->bn3.d_output = net->relu3.d_input;
-    batch_norm_op_backward(&(net->bn3));
-    free(net->bn3.d_output);
-    free(net->bn3.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn3)) duration: %.4fs \n", duration);
-#endif
-
-    for(int i=0; i< net->bn3.units; i++)
-    {
-        if(net->bn3.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! bn3  %f\n",net->bn3.d_input[i]);
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->conv3.d_input = (float *)calloc(net->conv3.in_units, sizeof(float));
-    net->conv3.d_output = net->bn3.d_input;
-    conv_op_backward(&(net->conv3));
-    free(net->conv3.d_output);
-    free(net->conv3.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv3)) duration: %.4fs \n", duration);
-#endif
-
-    for(int i=0; i< net->conv3.in_units; i++)
-    {
-        if(net->conv3.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! conv3  %f\n",net->conv3.d_input[i]);
-            //exit(-1);            
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp2.d_input = (float *)calloc(net->mp2.in_units, sizeof(float));
-    net->mp2.d_output = net->conv3.d_input;
-    max_pooling_op_backward(&(net->mp2));
-    free(net->mp2.d_output);
-    free(net->mp2.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp2)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu2.d_input = (float *)calloc(net->relu2.units, sizeof(float));
-    net->relu2.d_output = net->mp2.d_input;
-    relu_op_backward(&(net->relu2));
-    free(net->relu2.d_output);
-    free(net->relu2.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu2)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->bn2.d_input = (float *)calloc(net->bn2.units, sizeof(float));
-    net->bn2.d_output = net->relu2.d_input;
-    batch_norm_op_backward(&(net->bn2));
-    free(net->bn2.d_output);
-    free(net->bn2.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn2)) duration: %.4fs \n", duration);
-#endif
-
-    for(int i=0; i< net->bn2.units; i++)
-    {
-        if(net->bn2.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! bn2  %f\n",net->bn2.d_input[i]);
-            //exit(-1);            
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->conv2.d_input = (float *)calloc(net->conv2.in_units, sizeof(float));
-    net->conv2.d_output = net->bn2.d_input;
-    conv_op_backward(&(net->conv2));
-    free(net->conv2.d_output);
-    free(net->conv2.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv2)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->mp1.d_input = (float *)calloc(net->mp1.in_units, sizeof(float));
-    net->mp1.d_output = net->conv2.d_input;
-    max_pooling_op_backward(&(net->mp1));
-    free(net->mp1.d_output);
-    free(net->mp1.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp1)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->relu1.d_input = (float *)calloc(net->relu1.units, sizeof(float));
-    net->relu1.d_output = net->mp1.d_input;
-    relu_op_backward(&(net->relu1));
-    free(net->relu1.d_output);
-    free(net->relu1.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu1)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->bn1.d_input = (float *)calloc(net->bn1.units, sizeof(float));
-    net->bn1.d_output = net->relu1.d_input;
-    batch_norm_op_backward(&(net->bn1));
-    free(net->bn1.d_output);
-    free(net->bn1.output);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn1)) duration: %.4fs \n", duration);
-#endif
-
-    for(int i=0; i< net->bn1.units; i++)
-    {
-        if(net->bn1.d_input[i] > 4)
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!! bn1  %f\n",net->bn1.d_input[i]);
-            //exit(-1);            
-            break;
-        }
-    }
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    net->conv1.d_input = (float *)calloc(net->conv1.in_units, sizeof(float));
-    net->conv1.d_output = net->bn1.d_input;
-    conv_op_backward(&(net->conv1));
-    free(net->conv1.d_output);
-    free(net->conv1.output);
-    free(net->conv1.d_input);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv1)) duration: %.4fs \n", duration);
-#endif
-
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &start);
-#endif
-    update_params(net);
-#ifdef SHOW_OP_TIME
-    clock_gettime(CLOCK_MONOTONIC, &finish);
-    duration = (finish.tv_sec - start.tv_sec);
-    duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward update_params(net) duration: %.4fs \n", duration);
-#endif
-
-    alexnet_free_d_params(net);
-}
-
-
-void alexnet_malloc_params(alexnet *net)
-{
-
     net->conv1.weights = (float *)malloc(sizeof(float) * C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L);
     net->conv2.weights = (float *)malloc(sizeof(float) * C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L);
     net->conv3.weights = (float *)malloc(sizeof(float) * C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L);
@@ -1746,42 +447,7 @@ void alexnet_malloc_params(alexnet *net)
     net->bn5.beta = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
 }
 
-void alexnet_calloc_d_params(alexnet *net)
-{
-
-    net->conv1.d_weights = (float *)calloc( C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L, sizeof(float));
-    net->conv2.d_weights = (float *)calloc( C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L, sizeof(float));
-    net->conv3.d_weights = (float *)calloc( C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L, sizeof(float));
-    net->conv4.d_weights = (float *)calloc( C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L, sizeof(float));
-    net->conv5.d_weights = (float *)calloc( C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L, sizeof(float));
-    net->fc1.d_weights = (float *)calloc( C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L, sizeof(float));
-    net->fc2.d_weights = (float *)calloc( FC6_LAYER*FC7_LAYER, sizeof(float));
-    net->fc3.d_weights = (float *)calloc( FC7_LAYER*OUT_LAYER, sizeof(float));
-
-    net->conv1.d_bias = (float *)calloc( C1_CHANNELS, sizeof(float));
-    net->conv2.d_bias = (float *)calloc( C2_CHANNELS, sizeof(float));
-    net->conv3.d_bias = (float *)calloc( C3_CHANNELS, sizeof(float));
-    net->conv4.d_bias = (float *)calloc( C4_CHANNELS, sizeof(float));
-    net->conv5.d_bias = (float *)calloc( C5_CHANNELS, sizeof(float));
-    net->fc1.d_bias = (float *)calloc( FC6_LAYER, sizeof(float));
-    net->fc2.d_bias = (float *)calloc( FC7_LAYER, sizeof(float));
-    net->fc3.d_bias = (float *)calloc( OUT_LAYER, sizeof(float));
-
-    net->bn1.d_gamma = (float *)calloc( C1_CHANNELS*FEATURE1_L*FEATURE1_L, sizeof(float));
-    net->bn2.d_gamma = (float *)calloc( C2_CHANNELS*FEATURE2_L*FEATURE2_L, sizeof(float));
-    net->bn3.d_gamma = (float *)calloc( C3_CHANNELS*FEATURE3_L*FEATURE3_L, sizeof(float));
-    net->bn4.d_gamma = (float *)calloc( C4_CHANNELS*FEATURE4_L*FEATURE4_L, sizeof(float));
-    net->bn5.d_gamma = (float *)calloc( C5_CHANNELS*FEATURE5_L*FEATURE5_L, sizeof(float));
-
-    net->bn1.d_beta = (float *)calloc( C1_CHANNELS*FEATURE1_L*FEATURE1_L, sizeof(float));
-    net->bn2.d_beta = (float *)calloc( C2_CHANNELS*FEATURE2_L*FEATURE2_L, sizeof(float));
-    net->bn3.d_beta = (float *)calloc( C3_CHANNELS*FEATURE3_L*FEATURE3_L, sizeof(float));
-    net->bn4.d_beta = (float *)calloc( C4_CHANNELS*FEATURE4_L*FEATURE4_L, sizeof(float));
-    net->bn5.d_beta = (float *)calloc( C5_CHANNELS*FEATURE5_L*FEATURE5_L, sizeof(float));
-
-}
-
-void alexnet_free_params(alexnet *net)
+void free_alexnet(alexnet *net)
 {
     free(net->conv1.weights);
     free(net->conv2.weights);
@@ -1814,41 +480,74 @@ void alexnet_free_params(alexnet *net)
     free(net->bn5.beta); 
 }
 
-void alexnet_free_d_params(alexnet *net)
+
+static float U_Random()
 {
-    free(net->conv1.d_weights);
-    free(net->conv2.d_weights);
-    free(net->conv3.d_weights);
-    free(net->conv4.d_weights);
-    free(net->conv5.d_weights);
-    free(net->fc1.d_weights); 
-    free(net->fc2.d_weights);
-    free(net->fc3.d_weights);
-
-    free(net->conv1.d_bias); 
-    free(net->conv2.d_bias);
-    free(net->conv3.d_bias); 
-    free(net->conv4.d_bias); 
-    free(net->conv5.d_bias);
-    free(net->fc1.d_bias); 
-    free(net->fc2.d_bias); 
-    free(net->fc3.d_bias);
-
-    free(net->bn1.d_gamma); 
-    free(net->bn2.d_gamma); 
-    free(net->bn3.d_gamma); 
-    free(net->bn4.d_gamma);
-    free(net->bn5.d_gamma);
-
-    free(net->bn1.d_beta);
-    free(net->bn2.d_beta);
-    free(net->bn3.d_beta);
-    free(net->bn4.d_beta);
-    free(net->bn5.d_beta); 
+    float f;
+    srand( (unsigned)time( NULL ) );
+    f = (float)(rand() % 100);
+    return f/100;
 }
 
-void alexnet_param_init(alexnet *net)
+static void gauss_initialization(float *p, int n, int in_units, int out_units)
 {
+    float mean  = 0;
+    float stddv = 0.01;
+
+	float V1, V2, S;
+	static int phase = 0;
+	float X;
+    for(int shift=0; shift<n; shift++)
+    {
+        if(phase == 0) 
+        {
+            do {
+                float U1 = (float) rand() / RAND_MAX;
+                float U2 = (float) rand() / RAND_MAX;
+
+                V1 = 2 * U1 - 1;
+                V2 = 2 * U2 - 1;
+                S = V1 * V1 + V2 * V2;
+            } while (S >= 1 || S == 0);
+    
+            X = V1 * sqrt(-2 * log(S) / S);
+        }else
+        {
+            X = V2 * sqrt(-2 * log(S) / S);
+        }
+        phase = 1 - phase;
+
+        p[shift] = mean + stddv * X;
+    }
+}
+
+void set_alexnet(alexnet *net, short batchsize)
+{
+    net->batchsize = batchsize;
+    net->conv1.batchsize = batchsize;
+    net->conv2.batchsize = batchsize;
+    net->conv3.batchsize = batchsize;
+    net->conv4.batchsize = batchsize;
+    net->conv5.batchsize = batchsize;
+    net->fc1.batchsize = batchsize;
+    net->fc2.batchsize = batchsize;
+    net->fc3.batchsize = batchsize;
+    net->bn1.batchsize = batchsize;
+    net->bn2.batchsize = batchsize;
+    net->bn3.batchsize = batchsize;
+    net->bn4.batchsize = batchsize;
+    net->bn5.batchsize = batchsize;
+    net->mp1.batchsize = batchsize;
+    net->mp2.batchsize = batchsize;
+    net->mp5.batchsize = batchsize;
+    net->relu1.batchsize = batchsize;
+    net->relu2.batchsize = batchsize;
+    net->relu3.batchsize = batchsize;
+    net->relu4.batchsize = batchsize;
+    net->relu5.batchsize = batchsize;
+    net->relu6.batchsize = batchsize;
+    net->relu7.batchsize = batchsize;
+
     net->conv1.in_channels = IN_CHANNELS;
     net->conv1.out_channels = C1_CHANNELS;
     net->conv1.in_h = FEATURE0_L;
@@ -1972,7 +671,6 @@ void alexnet_param_init(alexnet *net)
     net->fc3.in_units = FC7_LAYER;
     net->fc3.out_units = OUT_LAYER;
 
-
     gauss_initialization(net->conv1.weights, C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L, net->conv1.in_units, net->conv1.out_units);
     gauss_initialization(net->conv2.weights, C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L, net->conv2.in_units, net->conv2.out_units);
     gauss_initialization(net->conv3.weights, C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L, net->conv3.in_units, net->conv3.out_units);
@@ -2031,42 +729,53 @@ void alexnet_param_init(alexnet *net)
 }
 
 
-static float U_Random()
+int main(int argc, char* argv[])
 {
-    float f;
-    srand( (unsigned)time( NULL ) );
-    f = (float)(rand() % 100);
-    return f/100;
-}
-
-void gauss_initialization(float *p, int n, int in_units, int out_units)
-{
-    float mean  = 0;
-    float stddv = 0.01;
-
-	float V1, V2, S;
-	static int phase = 0;
-	float X;
-    for(int shift=0; shift<n; shift++)
-    {
-        if(phase == 0) 
-        {
-            do {
-                float U1 = (float) rand() / RAND_MAX;
-                float U2 = (float) rand() / RAND_MAX;
-
-                V1 = 2 * U1 - 1;
-                V2 = 2 * U2 - 1;
-                S = V1 * V1 + V2 * V2;
-            } while (S >= 1 || S == 0);
+    /**
+     * 
+     * Entrance
+     * 
+     * */
+    static alexnet net;
     
-            X = V1 * sqrt(-2 * log(S) / S);
-        }else
+    if( 0 == strcmp(argv[1], "train"))
+    {
+        // 
+        // $./alexnet train -batchsize 4 -epochs 1000
+        //
+        int batchsize = 8, 
+            epochs = 1000;
+        for(int i=2; i<argc-1; i++)
         {
-            X = V2 * sqrt(-2 * log(S) / S);
+            if(0==strcmp(argv[i], "-batchsize"))
+                sscanf(argv[i+1],"%d",&batchsize);
+            if(0==strcmp(argv[i], "-epochs"))
+                sscanf(argv[i+1],"%d",&epochs);
         }
-        phase = 1 - phase;
+        malloc_alexnet(&net);    
+        set_alexnet(&net, batchsize);
+        printf("\nalexnet setup fininshed. Waiting for training...\n");
+        printf("batch size: %d \n", batchsize);
+        printf("epochs: %d \n", epochs);
+        alexnet_train(&net, epochs);
+        free_alexnet(&net);
 
-        p[shift] = mean + stddv * X;
+    }else if( 0 == strcmp(argv[1], "inference"))
+    {
+        //
+        // $./alexnet inference ./data/0001.jpeg
+        //
+        malloc_alexnet(&net);    
+        set_alexnet(&net, 1);
+        //
+        // TODO: load pretrained model
+        //
+        printf("alexnet setup fininshed. Waiting for inference...\n");
+        alexnet_inference(&net, argv[2]);
+        free_alexnet(&net);
+
+    }else{
+        printf("Error: Unknown argument!!! \n");
     }
+
 }

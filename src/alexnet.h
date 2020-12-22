@@ -1,14 +1,22 @@
+//
+// File:        alexnet.h
+// Description: alexnet.h
+// Author:      Haris Wang
+//
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include "hyperparams.h"
+#include "convolution_layer.h"
+#include "maxpooling_layer.h"
+#include "activation_layer.h"
+#include "fc_layer.h"
+#include "batchnorm_layer.h"
+#include "dropout_layer.h"
 
-//#define SHOW_PREDCITION_DETAIL
-#define SHOW_METRIC_EVALUTE
+#define SHOW_PREDCITION_DETAIL
+//#define SHOW_METRIC_EVALUTE
 #define SHOW_OP_TIME
-
-
 
 
 //
@@ -51,67 +59,16 @@
 
 #define FC6_LAYER   4096
 #define FC7_LAYER   4096
-#define OUT_LAYER   10
+#define OUT_LAYER   1000
+#define DROPOUT_PROB  0.4
 
-
-
-//
-//  Declaration of operations
-//
-typedef struct conv_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
-    float *weights; float *d_weights;
-    float *bias; float *d_bias;
-    float *input_col;
-
-    int in_channels, out_channels;
-    int kernel_size; int padding; int stride;
-    int in_w, in_h, out_w, out_h;
-    int in_units, out_units;
-} conv_op;
-
-typedef struct max_pooling_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
-    int channels;
-    int kernel_size; int stride;
-    int in_w, in_h, out_w, out_h;
-    int in_units, out_units;
-} max_pooling_op;
-
-typedef struct fc_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
-    float *weights; float *d_weights;
-    float *bias; float *d_bias;
-    int in_units, out_units;
-} fc_op;
-
-typedef struct batch_norm_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
-    float *gamma; float *d_gamma;
-    float *beta; float *d_beta;
-
-    int units;
-
-    float *x_norm;
-    float *avg;
-    float *var;
-} batch_norm_op;
-
-typedef struct nonlinear_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
-    int units;
-} nonlinear_op;
 
 typedef struct network {
 
     float *input;
     float *output;
-
+    short batchsize;
+    
     conv_op conv1;
     batch_norm_op bn1;
     nonlinear_op relu1;
@@ -158,19 +115,18 @@ typedef struct network {
 #define METRIC_F1SCORE   3
 #define METRIC_ROC       4
 
-
 void metrics(float *ret, int *preds, int *labels, 
                 int classes, int TotalNum, int type);
+int argmax(float *arr, int n);
 
 
-void alexnet_forward(alexnet *net);
-void alexnet_backward(alexnet *net, int *batch_Y);
+void malloc_alexnet(alexnet *net);
+void free_alexnet(alexnet *net);
 
-void alexnet_malloc_params(alexnet *net);
-void alexnet_free_params(alexnet *net);
+void set_alexnet(alexnet *net, short batchsize);
 
-void alexnet_param_init(alexnet *net);
+void forward_alexnet(alexnet *net);
+void backward_alexnet(alexnet *net, int *batch_Y);
 
 void alexnet_train(alexnet *net, int epochs);
-
-void alexnet_inference(alexnet *net);
+void alexnet_inference(alexnet *net, char *filename);

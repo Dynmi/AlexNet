@@ -8,6 +8,7 @@ from torch.autograd import Variable
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 plt.switch_backend('agg')
 
 
@@ -47,28 +48,25 @@ class AlexNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.features(x)
-        x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
-
-
  
 def loadtraindata():
-    path = r"/home/haris/Documents/AlexNet/images10"
+    path = r"/home/haris/Documents/AlexNet/images"
     trainset = torchvision.datasets.ImageFolder(path,
                                                 transform=transforms.Compose(
                                                     [transforms.Resize((224, 224)),
                                                     transforms.ToTensor(),
                                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
                                                 )
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=8, shuffle=True, num_workers=2)
+    trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=4)
     return trainloader
 
 
 def train():
     trainloader = loadtraindata()
-    net = AlexNet(1000)
+    net = AlexNet(100)
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     criterion = nn.CrossEntropyLoss()
     # train
@@ -81,11 +79,16 @@ def train():
             optimizer.zero_grad()
  
             # forward + backward + optimize
+            st = time.time()
             outputs = net(inputs)
+            ed = time.time()
+            print("forward cost {} s".format(ed-st))
             loss = criterion(outputs, labels)
+            st = time.time()
             loss.backward()
             optimizer.step()
-
+            ed = time.time()
+            print("backward cost {} s".format(ed-st))
             if i%4==0:
                 print(torch.argmax(outputs,1), labels)
                 print('[%d, %5d] loss: %.3f' %
