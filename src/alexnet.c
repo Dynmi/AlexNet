@@ -25,6 +25,54 @@ typedef struct conv_args{
     pthread_mutex_t *mtx;
 } conv_args;
 
+void img2col(float *img, float *col, conv_op *op)
+{
+    register int input_offset;
+    register int owoh = op->out_w * op->out_h;
+    register int iwih = op->in_w*op->in_h;
+    register int kk = op->kernel_size* op->kernel_size;
+    register int ikk = 0;
+    register float *input = img;
+    register float *x_col = col;
+    for(register unsigned short in_c=0; in_c<op->in_channels; in_c++)
+    {
+        register int st_x=0;
+        for(register unsigned short out_x=0; out_x<op->out_w; out_x++)
+        {
+            register int st_y=0;
+            for(register unsigned short out_y=0; out_y<op->out_h; out_y++)
+            {
+                register int x_offset = ikk;
+                int y_offset = out_x*out_y;
+                register int st_y_offset=0;
+                for(register unsigned short j=0; j<op->kernel_size; j++)
+                {
+                    register int st_x_offset=0;
+                    for(register unsigned short i=0; i<op->kernel_size; i++)
+                    {
+                        // input[in_c][st_x+st_x_offset][st_y+st_y_offset]
+                        register int x_col_offset = x_offset*owoh + y_offset;
+                        if(!(st_x+st_x_offset <op->in_w) | !(st_y+st_y_offset <op->in_h))
+                        {
+                            x_col[x_col_offset] = 0;
+                            continue;
+                        }
+                        input_offset = in_c*iwih + (st_x+st_x_offset)*op->in_h + st_y+st_y_offset;
+                        x_col[x_col_offset] = input[input_offset];
+
+                        x_offset++;
+                        st_x_offset++;
+                    }
+                    st_y_offset++;
+                }
+                st_y+= op->stride;
+            }
+            st_x+= op->stride;
+        }
+        ikk += kk;
+    }
+}
+
 void pthread_conv_op_forward(void *argv)
 {
     /**
@@ -32,78 +80,33 @@ void pthread_conv_op_forward(void *argv)
      * */
     conv_args cp;
     memcpy(&cp, (conv_args *)argv, sizeof(conv_args));
-    float *input = cp.op->input;
-    float *weights = cp.op->weights;
-    float *bias = cp.op->bias;
-    float *output = cp.op->output;
-    int in_channels = cp.op->in_channels; int out_channels = cp.op->out_channels; 
-    int kernel_size = cp.op->kernel_size; int padding=cp.op->padding; 
-    int strides = cp.op->stride; int w = cp.op->in_w; int h = cp.op->in_h;
-    int p = cp.batch_id;
 
-    int out_w, out_h;
-    out_w = cp.op->out_w; out_h = cp.op->out_h;
-
-    unsigned int input_shift, weights_shift, out_shift;
-    int cur_w, cur_h;
-    for (int out_c = 0; out_c < out_channels; out_c++)
+    register float *x_col = (float *)calloc((cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size)*(cp.op->out_w * cp.op->out_h), sizeof(float));
+    float *input = cp.op->input + cp.batch_id * cp.op->in_units;
+    img2col(input, x_col, cp.op);
+    register float *weights = cp.op->weights;
+    register float *output = cp.op->output + cp.batch_id * cp.op->out_units;
+    register int ikk = (cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size);
+    for(register int i=0; i<(cp.op->out_w * cp.op->out_h); i++)
     {
-        cur_w = 0; 
-        for (int x = 0 - padding; x < w + padding-kernel_size+1; x += strides)
+        register int output_offset = i*cp.op->out_channels;
+        register int w_offset = 0;
+        for(register unsigned short j=0; j<cp.op->out_channels; j++)
         {
-            cur_h = 0;
-            for (int y = 0 - padding; y < h + padding-kernel_size+1; y += strides)
+            register int x_col_offset = ikk*i;
+            for(register int p=0; p<ikk; p++)
             {
-                //printf("cur_w is %d;  cur_h is %d\n", cur_w, cur_h);
-            
-                // output[out_c][cur_w][cur_h]
-                out_shift = p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h;
-                //cp.output[out_shift] = 0.0;
-                for (int in_c = 0; in_c < in_channels; in_c++)
-                {
-                    /**
-                     *  | -------------------------------------------------------------------|
-                     *  | input[c][x][y]              input[c][x+kernel_size][y]             |
-                     *  | input[c][x][y+kernel_size]  input[c][x+kernel_size][y+kernel_size] |
-                     *  | -------------------------------------------------------------------|
-                     * 
-                     *          conv
-                     * 
-                     *   weights[out_c][c]
-                     * 
-                     *          ||
-                     *          V
-                     * 
-                     *   output[c][cur_w][cur_h]
-                     * */
-                    float tmp = 0;
-
-                    for(short kernel_x=0; kernel_x<kernel_size; kernel_x++)
-                    {
-                        if(x+kernel_x<0) continue; // padding areas
-                        if(x+kernel_x>=w) break;
-
-                        for(short kernel_y=0; kernel_y<kernel_size; kernel_y++)
-                        {
-                            if(y+kernel_y<0) continue; // padding areas
-                            if(y+kernel_y>=w) break;
-
-                            // res += input[p][in_c][x][y] * weights[out_c][in_c][i][j]
-                            input_shift = p*cp.op->in_units + in_c*w*h + (x+kernel_x)*w + (y+kernel_y);
-                            weights_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + kernel_x*kernel_size + kernel_y;
-                            tmp += input[input_shift] * weights[weights_shift];
-                        }
-                    }
-                    
-                    output[out_shift] += tmp;
-                }
-                output[out_shift] += bias[out_c];
-                // printf("%.2f \n", x, y, output[p*out_channels*out_w*out_h + out_c*out_w*out_h + cur_w*out_h + cur_h]);
-                cur_h++;
+                output[output_offset] += x_col[x_col_offset] * weights[w_offset];
+                w_offset++;
+                x_col_offset++;
             }
-            cur_w++;
+            output[output_offset] += cp.op->bias[j];
+
+            output_offset++;
         }
-    }    
+    }
+    
+    free(x_col);
 }
 
 void conv_op_forward(conv_op *op)
@@ -126,6 +129,7 @@ void conv_op_forward(conv_op *op)
         args[p].batch_id = p;
         pthread_create(&tid[p], NULL, pthread_conv_op_forward, (void *)(&args[p]));
     }
+    
     for(int p=0; p<BATCH_SIZE; p++)
     {
         pthread_join(tid[p], NULL);
@@ -251,47 +255,73 @@ void conv_op_backward(conv_op *op)
 }
 
 
+typedef struct mp_args{
+    max_pooling_op *op;
+    int batch_id;
+} mp_args;
+
+void pthread_mp_op_forward(void *argv)
+{
+    mp_args mp;
+    memcpy(&mp, (mp_args *)argv, sizeof(mp_args));
+    register float *input = mp.op->input + mp.batch_id * mp.op->in_units;
+    register float *output = mp.op->output + mp.batch_id * mp.op->out_units;
+    int channels = mp.op->channels;
+    int strides = mp.op->stride;
+    int pool_size = mp.op->kernel_size;
+
+    register int o_x, o_y;
+    register int input_offset;
+    register int output_offset;
+    register int iwih = mp.op->in_w * mp.op->in_h;
+    register int owoh = mp.op->out_w * mp.op->out_h;
+
+    for (register int c = 0; c < channels; c++)
+    {
+        o_x=0;
+        for (int i = 0; i < mp.op->in_w-strides+1; i += strides)
+        {
+            o_y=0;
+            for (int j = 0; j < mp.op->in_h-strides+1; j += strides)
+            {
+                /**
+                 * inputs[i ~ i+pool_size][j ~ j+pool_size]
+                 * outputs[o_x][o_j]
+                 * */
+                input_offset = c*iwih +i*mp.op->in_h +j;
+                register float pixel = input[input_offset];
+                for (register int fx=i; fx<MIN(i+pool_size,mp.op->in_w); fx++)
+                {
+                    for (register int fy=j; fy<MIN(j+pool_size,mp.op->in_h); fy++)
+                    {                        
+                        pixel = MAX(pixel, input[fx*mp.op->in_h+fy]);
+                    }
+                }
+                output_offset = c*owoh + o_x + o_y*mp.op->out_w;
+                output[output_offset] = pixel;
+                o_y++;
+            }
+            o_x++;
+        }
+    }
+
+
+}
+
 void max_pooling_op_forward(max_pooling_op *op)
 {
-    float *input = op->input;
-    float *output = op->output;
-    int channels = op->channels;
-    int in_length = op->in_w;
-    int strides = op->stride;
-    int pool_size = op->kernel_size;
-
-    int o_x, o_y, o_length = in_length / strides;
-    float pixel;
-
-    for (int p=0; p<BATCH_SIZE; p++)
+    mp_args args[BATCH_SIZE+1];
+    pthread_t tid[BATCH_SIZE+1];
+    for(int p=0; p<BATCH_SIZE; p++)
     {
-        for (int c = 0; c < channels; c++)
-        {
-            o_x=0;
-            for (int i = 0; i < in_length-strides+1; i += strides)
-            {
-                o_y=0;
-                for (int j = 0; j < in_length-strides+1; j += strides)
-                {
-                    /**
-                     * inputs[i ~ i+pool_size][j ~ j+pool_size]
-                     * outputs[o_x][o_j]
-                     * */
-
-                    pixel = input[p*channels*in_length*in_length+c*in_length*in_length+i*in_length+j];
-                    for (int fx=i; fx<MIN(i+pool_size,in_length); fx++)
-                    {
-                        for (int fy=j; fy<MIN(j+pool_size,in_length); fy++)
-                        {                        
-                            pixel = MAX(pixel, input[p*channels*in_length*in_length+c*in_length*in_length+fx*in_length+fy]);
-                        }
-                    }
-                    output[p*channels*o_length*o_length + c*o_length*o_length + o_x + o_y*o_length] = pixel;
-                    o_y++;
-                }
-                o_x++;
-            }
-        }
+        args[p].op = op;
+        args[p].batch_id = p;
+        pthread_create(&tid[p], NULL, pthread_mp_op_forward, (void *)(&args[p]));
+    }
+    
+    for(int p=0; p<BATCH_SIZE; p++)
+    {
+        pthread_join(tid[p], NULL);
     }
 }
 
@@ -366,25 +396,28 @@ void pthread_fc_op_forward(void *argv)
     fc_args args;
     memcpy(&args, (fc_args *)argv, sizeof(fc_args));
 
-    float *input = args.op->input;
-    float *output = args.op->output;
-    float *weights = args.op->weights;
-    float *bias = args.op->bias;
-    int in_units = args.op->in_units;
-    int out_units = args.op->out_units;
-    int p = args.batch_id;
+    register float *input = args.op->input + args.batch_id * args.op->in_units;
+    register float *output = args.op->output + args.batch_id * args.op->out_units;
+    register float *weights = args.op->weights;
+    register float *bias = args.op->bias;
 
-    for (int i = 0; i < in_units; i++)
+    register int w_offset = 0;
+    for (register int i = 0; i < args.op->in_units; i++)
     {
-        for (int j = 0; j < out_units; j++)
+        if (input[i]<0.00001)
         {
-            output[p*out_units + j] += input[p*in_units + i] * weights[j*out_units + i];
+            w_offset+=args.op->out_units;
+            continue;
+        }
+        for (register int j = 0; j < args.op->out_units; j++)
+        {
+            output[j] += input[i] * weights[w_offset];
+            w_offset++;
         }
     }
-    for (int i = 0; i < out_units; i++)
-    {
-        output[p*out_units + i] += bias[i];
-    }
+
+    for (register int j = 0; j < args.op->out_units; j++)
+        output[j] += bias[j];
 
 }
 
@@ -411,21 +444,21 @@ void pthread_fc_op_backward(void *argv)
     fc_args args;
     memcpy(&args, (fc_args *)argv, sizeof(fc_args));
 
-    float *input = args.op->input;
-    float *weights = args.op->weights;
-    float *bias = args.op->bias;
+    register float *input = args.op->input + args.batch_id * args.op->in_units;
+    register float *weights = args.op->weights;
+    register float *bias = args.op->bias;
     int in_units = args.op->in_units;
     int out_units = args.op->out_units;
-    float *in_error = args.op->d_input;
-    float *out_error = args.op->d_output;
-    float *w_deltas = args.op->d_weights;
-    float *b_deltas = args.op->d_bias;
+    register float *in_error = args.op->d_input;
+    register float *out_error = args.op->d_output;
+    register float *w_deltas = args.op->d_weights;
+    register float *b_deltas = args.op->d_bias;
     
     int p = args.batch_id;
     unsigned int w_shift;
-    for (int i=0; i<in_units; i++)
+    for (register int i=0; i<in_units; i++)
     {
-        for (int j=0; j<out_units; j++)
+        for (register int j=0; j<out_units; j++)
         {
             w_shift = i*out_units + j;
             if(p==0)
@@ -434,7 +467,7 @@ void pthread_fc_op_backward(void *argv)
             }
 
             pthread_mutex_lock( args.mtx+w_shift );
-            w_deltas[w_shift] += input[p*in_units + i] * out_error[j] / BATCH_SIZE;
+            w_deltas[w_shift] += input[i] * out_error[j] / BATCH_SIZE;
             pthread_mutex_unlock( args.mtx+w_shift );
         }
     }
@@ -476,34 +509,37 @@ void fc_op_backward(fc_op *op)
 
 void batch_norm_op_forward(batch_norm_op *op)
 {
-    float *input = op->input;
-    float *output = op->output;
-    float *beta = op->beta;
-    float *gamma = op->gamma;
-    int units = op->units;
+    register float *input = op->input;
+    register float *output = op->output;
+    register float *beta = op->beta;
+    register float *gamma = op->gamma;
+    register int units = op->units;
 
-    op->avg = (float *)calloc(op->units, sizeof(float));
-    op->var = (float *)calloc(op->units, sizeof(float));
-    op->x_norm = (float *)malloc(sizeof(float) * BATCH_SIZE * op->units);
+    op->avg = (float *)calloc(units, sizeof(float));
+    op->var = (float *)calloc(units, sizeof(float));
+    op->x_norm = (float *)malloc(sizeof(float) * BATCH_SIZE * units);
+
+    register int i;
+    register int p;
     // calculate mean for each unit along batch axis
-    for (int i = 0; i < units; i++)
+    for (i = 0; i < units; i++)
     {
-        for (int p = 0; p < BATCH_SIZE; p++)
+        for (p = 0; p < BATCH_SIZE; p++)
             op->avg[i] += input[p*units + i];
         op->avg[i] /= BATCH_SIZE;
     }
 
     // calculate variance for each unit along batch axis
-    for (int i = 0; i < units; i++)
+    for (i = 0; i < units; i++)
     {
-        for (int p = 0; p < BATCH_SIZE; p++)
+        for (p = 0; p < BATCH_SIZE; p++)
             op->var[i] += (input[p*units + i] - op->avg[i]) * (input[p*units + i] - op->avg[i]);
         op->var[i] /= BATCH_SIZE;
     }
 
-    for (int i = 0; i < units; i++)
+    for (i = 0; i < units; i++)
     {
-        for (int p = 0; p < BATCH_SIZE; p++)
+        for (p = 0; p < BATCH_SIZE; p++)
         {
             op->x_norm[p*units+i] = (input[p*units + i] - op->avg[i]) / sqrt(op->var[i] + EPSILON); 
             output[p*units+i] = gamma[i] * op->x_norm[p*units+i] + beta[i];
@@ -696,9 +732,7 @@ void dropout(float *x, float prob, int units)
         for(int i=0; i<units; i++)
         {
             if(rand()%100 < prob*100)
-            {
                 x[p*units+i] = 0;
-            }
         }
     }
 }
@@ -809,7 +843,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv1) duration: %.2fs \n", duration);
+    printf(" forward (&(net->conv1) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -822,7 +856,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->bn1)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->bn1)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->bn1.units * BATCH_SIZE; p++)
@@ -843,7 +877,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu1)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -856,7 +890,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp1)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->mp1)) duration: %.4fs \n", duration);
 #endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv2>>>>>>>>>>>>>>>>>>>>>>>>> \n");
@@ -870,7 +904,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv2)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->conv2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -883,7 +917,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->bn2)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->bn2)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->bn2.units * BATCH_SIZE; p++)
@@ -904,7 +938,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu2)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -917,7 +951,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp2)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->mp2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -931,7 +965,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv3)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->conv3)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -944,7 +978,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->bn3)); duration: %.2fs \n", duration);
+    printf(" forward (&(net->bn3)); duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->bn3.units * BATCH_SIZE; p++)
@@ -965,7 +999,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu3)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu3)) duration: %.4fs \n", duration);
 #endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv4>>>>>>>>>>>>>>>>>>>>>>>>> \n");
@@ -979,7 +1013,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv4)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->conv4)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -992,7 +1026,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->bn4)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->bn4)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->bn4.units * BATCH_SIZE; p++)
@@ -1013,7 +1047,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu4)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu4)) duration: %.4fs \n", duration);
 #endif
 
     //printf(">>>>>>>>>>>>>>>>>>conv5>>>>>>>>>>>>>>>>>>>>>>>>> \n");
@@ -1027,9 +1061,9 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->conv5)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->conv5)) duration: %.4fs \n", duration);
 #endif
-    
+
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
@@ -1040,7 +1074,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->bn5)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->bn5)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->bn5.units * BATCH_SIZE; p++)
@@ -1061,7 +1095,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu5)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu5)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1074,7 +1108,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->mp5)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->mp5)) duration: %.4fs \n", duration);
 #endif
 
     dropout(net->mp5.output, DROPOUT_PROB, net->mp5.out_units);
@@ -1089,7 +1123,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->fc1)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->fc1)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->fc1.out_units * BATCH_SIZE; p++)
@@ -1111,7 +1145,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu6)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu6)) duration: %.4fs \n", duration);
 #endif
     
     dropout(net->relu6.output, DROPOUT_PROB, net->relu6.units);
@@ -1135,7 +1169,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->fc2)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->fc2)) duration: %.4fs \n", duration);
 #endif
 
     for(int p=0; p< net->fc2.out_units * BATCH_SIZE; p++)
@@ -1157,7 +1191,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->relu7)) duration: %.2fs \n", duration);
+    printf(" forward (&(net->relu7)) duration: %.4fs \n", duration);
 #endif
     
     for(int p=0; p< net->relu7.units * BATCH_SIZE; p++)
@@ -1179,7 +1213,7 @@ void alexnet_forward(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" forward (&(net->fc3) duration: %.2fs \n", duration);
+    printf(" forward (&(net->fc3) duration: %.4fs \n", duration);
 #endif
 
     net->output = net->fc3.output;
@@ -1200,7 +1234,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward cross_entropy duration: %.2fs \n", duration);
+    printf(" backward cross_entropy duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1214,7 +1248,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc3)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->fc3)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1229,7 +1263,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu7)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu7)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1244,7 +1278,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc2)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->fc2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1259,7 +1293,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu6)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu6)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1274,7 +1308,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->fc1)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->fc1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1289,7 +1323,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp5)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->mp5)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1304,7 +1338,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu5)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu5)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1329,7 +1363,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn5)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->bn5)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1344,7 +1378,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv5)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->conv5)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1367,7 +1401,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu4)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu4)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1382,7 +1416,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn4)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->bn4)) duration: %.4fs \n", duration);
 #endif
 
     for(int i=0; i< net->bn4.units; i++)
@@ -1407,7 +1441,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv4)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->conv4)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1430,7 +1464,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu3)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu3)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1445,7 +1479,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn3)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->bn3)) duration: %.4fs \n", duration);
 #endif
 
     for(int i=0; i< net->bn3.units; i++)
@@ -1469,7 +1503,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv3)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->conv3)) duration: %.4fs \n", duration);
 #endif
 
     for(int i=0; i< net->conv3.in_units; i++)
@@ -1494,7 +1528,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp2)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->mp2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1509,7 +1543,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu2)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1524,7 +1558,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn2)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->bn2)) duration: %.4fs \n", duration);
 #endif
 
     for(int i=0; i< net->bn2.units; i++)
@@ -1549,7 +1583,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv2)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->conv2)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1564,7 +1598,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->mp1)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->mp1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1579,7 +1613,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->relu1)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->relu1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1594,7 +1628,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->bn1)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->bn1)) duration: %.4fs \n", duration);
 #endif
 
     for(int i=0; i< net->bn1.units; i++)
@@ -1620,7 +1654,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward (&(net->conv1)) duration: %.2fs \n", duration);
+    printf(" backward (&(net->conv1)) duration: %.4fs \n", duration);
 #endif
 
 #ifdef SHOW_OP_TIME
@@ -1631,7 +1665,7 @@ void alexnet_backward(alexnet *net, int *batch_Y)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     duration = (finish.tv_sec - start.tv_sec);
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf(" backward update_params(net) duration: %.2fs \n", duration);
+    printf(" backward update_params(net) duration: %.4fs \n", duration);
 #endif
 
     alexnet_free_d_params(net);
