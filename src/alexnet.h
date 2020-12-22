@@ -4,9 +4,9 @@
 #include <time.h>
 #include "hyperparams.h"
 
-#define SHOW_PREDCITION_DETAIL
+//#define SHOW_PREDCITION_DETAIL
 #define SHOW_METRIC_EVALUTE
-//#define SHOW_OP_TIME
+#define SHOW_OP_TIME
 
 
 
@@ -51,7 +51,7 @@
 
 #define FC6_LAYER   4096
 #define FC7_LAYER   4096
-#define OUT_LAYER   1000
+#define OUT_LAYER   10
 
 
 
@@ -63,7 +63,8 @@ typedef struct conv_op {
     float *output; float *d_output;
     float *weights; float *d_weights;
     float *bias; float *d_bias;
-    
+    float *input_col;
+
     int in_channels, out_channels;
     int kernel_size; int padding; int stride;
     int in_w, in_h, out_w, out_h;

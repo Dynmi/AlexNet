@@ -73,6 +73,53 @@ void img2col(float *img, float *col, conv_op *op)
     }
 }
 
+void col2img(float *col, float *img, conv_op *op)
+{
+    register int input_offset;
+    register int owoh = op->out_w * op->out_h;
+    register int iwih = op->in_w*op->in_h;
+    register int kk = op->kernel_size* op->kernel_size;
+    register int ikk = 0;
+    register float *input = img;
+    register float *x_col = col;
+    for(register unsigned short in_c=0; in_c<op->in_channels; in_c++)
+    {
+        register int st_x=0;
+        for(register unsigned short out_x=0; out_x<op->out_w; out_x++)
+        {
+            register int st_y=0;
+            for(register unsigned short out_y=0; out_y<op->out_h; out_y++)
+            {
+                register int x_offset = ikk;
+                int y_offset = out_x*out_y;
+                register int st_y_offset=0;
+                for(register unsigned short j=0; j<op->kernel_size; j++)
+                {
+                    register int st_x_offset=0;
+                    for(register unsigned short i=0; i<op->kernel_size; i++)
+                    {
+                        // input[in_c][st_x+st_x_offset][st_y+st_y_offset]
+                        register int x_col_offset = x_offset*owoh + y_offset;
+                        if(!(st_x+st_x_offset <op->in_w) | !(st_y+st_y_offset <op->in_h))
+                        {
+                            continue;
+                        }
+                        input_offset = in_c*iwih + (st_x+st_x_offset)*op->in_h + st_y+st_y_offset;
+                        input[input_offset] = x_col[x_col_offset];
+
+                        x_offset++;
+                        st_x_offset++;
+                    }
+                    st_y_offset++;
+                }
+                st_y+= op->stride;
+            }
+            st_x+= op->stride;
+        }
+        ikk += kk;
+    }
+}
+
 void pthread_conv_op_forward(void *argv)
 {
     /**
@@ -81,9 +128,10 @@ void pthread_conv_op_forward(void *argv)
     conv_args cp;
     memcpy(&cp, (conv_args *)argv, sizeof(conv_args));
 
-    register float *x_col = (float *)calloc((cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size)*(cp.op->out_w * cp.op->out_h), sizeof(float));
+    register float *x_col = cp.op->input_col + cp.batch_id * cp.op->in_units;
     float *input = cp.op->input + cp.batch_id * cp.op->in_units;
     img2col(input, x_col, cp.op);
+
     register float *weights = cp.op->weights;
     register float *output = cp.op->output + cp.batch_id * cp.op->out_units;
     register int ikk = (cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size);
@@ -105,8 +153,6 @@ void pthread_conv_op_forward(void *argv)
             output_offset++;
         }
     }
-    
-    free(x_col);
 }
 
 void conv_op_forward(conv_op *op)
@@ -121,6 +167,7 @@ void conv_op_forward(conv_op *op)
      * Output
      *      op->output
      * */
+    op->input_col = (float *)calloc(BATCH_SIZE*(op->in_channels * op->kernel_size* op->kernel_size)*(op->out_w * op->out_h), sizeof(float));
     conv_args args[BATCH_SIZE+1];
     pthread_t tid[BATCH_SIZE+1];
     for(int p=0; p<BATCH_SIZE; p++)
@@ -146,73 +193,50 @@ void pthread_conv_op_backward(void *argv)
     conv_args cp;
     memcpy(&cp, (conv_args *)argv, sizeof(conv_args));
 
-    float *in_error = cp.op->d_input;
-    float *out_error = cp.op->d_output;
-    float *w_deltas = cp.op->d_weights;
+    register float *in_error = cp.op->d_input;
+    register float *out_error = cp.op->d_output;
+    register float *w_deltas = cp.op->d_weights;
     float *b_deltas = cp.op->d_bias;
-    float *input = cp.op->input;
-    float *weights = cp.op->weights;
-    int in_channels = cp.op->in_channels; 
-    int out_channels = cp.op->out_channels;
-    int in_w = cp.op->in_w, in_h = cp.op->in_h;
-    int out_w = cp.op->out_w, out_h = cp.op->out_h;
-    int padding = cp.op->padding;
-    int kernel_size = cp.op->kernel_size;
-    int strides = cp.op->stride;
+    register float *weights = cp.op->weights;
 
-    int p = cp.batch_id;
+    int A = cp.op->out_channels,
+        B = cp.op->in_channels * cp.op->kernel_size * cp.op->kernel_size, 
+        C = cp.op->out_w * cp.op->out_h;
 
-    if(p==0)
+    register float *x_col = cp.op->input_col + cp.batch_id * B*C;
+
+    if( cp.batch_id == 0 )
     {
-        // compute b_deltas
-        for (int c=0; c<out_channels; c++)
+        float *x_col_error = (float *)calloc(C*B, sizeof(float));
+        for(register int i=0; i<A; i++)
         {
-            for (int i=0; i<out_w*out_h; i++)
+            for(register int p=0; p<C; p++)
             {
-                b_deltas[c] += out_error[c*out_w*out_h+i];
+                for(register int j=0; j<B; j++)
+                {
+                    x_col_error[j*C+p] += out_error[i*C+p] * weights[i*B+j];
+                }
+
+                b_deltas[i] += out_error[i*C+p];
             }
         }
+        col2img(x_col_error, in_error, cp.op);
+        free(x_col_error);
     }
 
-    unsigned int w_shift, in_shift, out_shift;
-    for (int in_c = 0; in_c < in_channels; in_c++)
+    for(register int i=0; i<A; i++)
     {
-        for (int out_c = 0; out_c < out_channels; out_c++)
+        for(register int j=0; j<B; j++)
         {
-            for (int out_x = 0; out_x < out_w; out_x++)
+            // w[i][j]
+            for(register int p=0; p<C; p++)
             {
-                for (int out_y = 0; out_y < out_h; out_y++)
-                {
-                    for (int i = 0; i < kernel_size; i++)
-                    {
-                        if (strides*out_x+i-padding < 0 | strides*out_x+i-padding >= in_w)
-                            continue;
+                register int w_offset = i*B+j;
+                register float tmp = out_error[i*C+p] * x_col[j*C+p];
+                pthread_mutex_lock( cp.mtx+w_offset );
+                w_deltas[w_offset] += tmp;
+                pthread_mutex_unlock( cp.mtx+w_offset ); 
 
-                        for (int j = 0; j < kernel_size; j++)
-                        {
-                            if (strides*out_y+j-padding < 0 | strides*out_y+j-padding >= in_h)
-                                continue;
-                            
-                            out_shift = out_c*out_w*out_h + out_x*out_h + out_y;
-                            w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + i*kernel_size + j;
-
-                            // compute w_deltas[out_c][in_c][i][j]
-                            
-                            pthread_mutex_lock( cp.mtx+w_shift );
-                            in_shift = p*in_channels*in_w*in_h + in_c*in_w*in_h + (strides*out_x+i-padding)*in_h + (strides*out_y+j-padding);
-                            w_deltas[w_shift] += input[in_shift] * out_error[out_shift] / BATCH_SIZE;
-                            pthread_mutex_unlock( cp.mtx+w_shift );
-
-                            if(p==0)
-                            {
-                                // compute in_error[in_c][][]
-                                in_shift = in_c*in_w*in_h + (strides*out_x+i-padding)*in_h + (strides*out_y+j-padding);
-                                w_shift = out_c*in_channels*kernel_size*kernel_size + in_c*kernel_size*kernel_size + (kernel_size-i-1)*kernel_size + j;                                
-                                in_error[in_shift] += out_error[out_shift] * weights[w_shift];
-                            }
-                        }
-                    }
-                }
             }
         }
     }
@@ -246,11 +270,16 @@ void conv_op_backward(conv_op *op)
         args[p].mtx = w_deltas_mtx;
         pthread_create(&tid[p], NULL, pthread_conv_op_backward, (void *)(&args[p]));
     }
+
     for(int p=0; p<BATCH_SIZE; p++)
     {
         pthread_join(tid[p], NULL);
     }
-
+    for(int i=0; i < op->in_channels * op->out_channels * op->kernel_size * op->kernel_size; i++)
+    {
+        op->d_weights[i] /= BATCH_SIZE;
+    }
+    free(op->input_col);
     free(w_deltas_mtx);
 }
 
@@ -455,28 +484,32 @@ void pthread_fc_op_backward(void *argv)
     register float *b_deltas = args.op->d_bias;
     
     int p = args.batch_id;
-    unsigned int w_shift;
+
+    unsigned int w_offset;
+
+    if(p==0)
+    {
+        for (register int j=0; j<out_units; j++)
+        {
+            for (register int i=0; i<in_units; i++)
+            {
+                w_offset = i*out_units + j;
+                in_error[i] += weights[w_offset] * out_error[j];
+            }
+            b_deltas[p] = out_error[p];
+        }
+    }
+
     for (register int i=0; i<in_units; i++)
     {
         for (register int j=0; j<out_units; j++)
         {
-            w_shift = i*out_units + j;
-            if(p==0)
-            {
-                in_error[i] += weights[w_shift] * out_error[j];
-            }
+            w_offset = i*out_units + j;
+            register float tmp = input[i] * out_error[j];
 
-            pthread_mutex_lock( args.mtx+w_shift );
-            w_deltas[w_shift] += input[i] * out_error[j] / BATCH_SIZE;
-            pthread_mutex_unlock( args.mtx+w_shift );
-        }
-    }
-
-    if(p==0)
-    {
-        for (int p = 0; p < out_units; p++)
-        {
-            b_deltas[p] = out_error[p];
+            pthread_mutex_lock( args.mtx+w_offset );
+            w_deltas[w_offset] += tmp;
+            pthread_mutex_unlock( args.mtx+w_offset );
         }
     }
 
@@ -489,6 +522,7 @@ void fc_op_backward(fc_op *op)
     {
         pthread_mutex_init(w_deltas_mtx+i, NULL);
     }
+
     conv_args args[BATCH_SIZE+1];
     pthread_t tid[BATCH_SIZE+1];
     for(int p=0; p<BATCH_SIZE; p++)
@@ -498,9 +532,15 @@ void fc_op_backward(fc_op *op)
         args[p].mtx = w_deltas_mtx;
         pthread_create(&tid[p], NULL, pthread_fc_op_backward, (void *)(&args[p]));
     }
+
     for(int p=0; p<BATCH_SIZE; p++)
     {
         pthread_join(tid[p], NULL);
+    }
+
+    for(int i=0; i < op->in_units*op->out_units; i++)
+    {
+        op->d_weights[i] /= BATCH_SIZE;
     }
 
     free(w_deltas_mtx);
