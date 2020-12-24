@@ -102,7 +102,6 @@ typedef struct network {
     nonlinear_op relu7;
 
     fc_op fc3;
-    nonlinear_op sfx;
 } alexnet;
 
 

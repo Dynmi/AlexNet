@@ -8,6 +8,36 @@ This project is an unofficial implementation of AlexNet, using C Program Languag
 
 **Only support CPU now**.
 
+## Architecture
+
+- Input
+- Conv2D
+- BatchNorm
+- Relu
+- MaxPooling
+- Conv2D
+- BatchNorm
+- Relu
+- MaxPooing
+- Conv2D
+- BatchNorm
+- Relu
+- Conv2D
+- BatchNorm
+- Relu
+- Conv2D
+- BatchNorm
+- Relu
+- MaxPooling
+- Dropout
+- FullConnected
+- Relu
+- Dropout
+- FullConnected
+- Relu
+- FullConnected
+- Output
+
 ## Original AlexNet Details
 
 > divide the learning rate by 10 when the validation error rate stopped improving with the current learning rate. The learning rate was initialized at 0.01 and reduced three times prior to termination. We trained the network for roughly 90 cycles through the training set of 1.2 million images.
@@ -45,7 +75,7 @@ make all
 
 ```
 
-1. 
+2. 
 ```
 ./alexnet train -batchsize <batchsize> -epochs <epochs>
 ```

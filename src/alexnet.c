@@ -350,7 +350,7 @@ void forward_alexnet(alexnet *net)
     max_pooling_op_forward(&(net->mp5));
 
 
-    dropout(net->mp5.output, DROPOUT_PROB, net->mp5.out_units);
+    dropout(net->mp5.output, DROPOUT_PROB, net->mp5.batchsize * net->mp5.out_units);
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -369,7 +369,7 @@ void forward_alexnet(alexnet *net)
     net->relu6.input = net->fc1.output;
     relu_op_forward(&(net->relu6));
 
-    dropout(net->relu6.output, DROPOUT_PROB, net->relu6.units);
+    dropout(net->relu6.output, DROPOUT_PROB, net->relu6.batchsize * net->relu6.units);
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
