@@ -110,13 +110,17 @@ static void* pthread_conv_op_forward(void *argv)
     float *output = cp.op->output + cp.batch_id * cp.op->out_units;
     int ikk = (cp.op->in_channels * cp.op->kernel_size* cp.op->kernel_size);
     int owoh = cp.op->out_w * cp.op->out_h;
-    // input[ic][ih][iw]
-    // x_col[owoh][ikk]
-    // weights[ikk][oc]
-    // output[oc][oh][ow]
+    // 
+    // >>>>>>>shape<<<<<<<
+    //  
+    // input    [ic,ih,iw]
+    // x_col    [owoh,ikk]
+    // weights  [ikk,oc]
+    // output   [oc,oh,ow]
+    //
     img2col(input, x_col, cp.op);
-    matrix_multiply(x_col, weights, output, owoh, ikk, cp.op->out_channels); //output[owoh][oc]
-    matrix_transpose(output, owoh, cp.op->out_channels); //output[oc][owoh]
+    matrix_multiply(x_col, weights, output, owoh, ikk, cp.op->out_channels); //output[owoh,oc]
+    matrix_transpose(output, owoh, cp.op->out_channels); //output[oc,owoh]
 
     register int o_offset=0;
     for(int i=0; i< cp.op->out_channels; i++)
@@ -153,9 +157,7 @@ void conv_op_forward(conv_op *op)
     }
     
     for(int p=0; p<op->batchsize; p++)
-    {
         pthread_join(tid[p], NULL);
-    }
 
 }
 
@@ -172,37 +174,35 @@ static void* pthread_conv_op_backward(void *argv)
         ikk = args.op->in_channels * args.op->kernel_size * args.op->kernel_size, 
         owoh = args.op->out_w * args.op->out_h;
 
-    // calculate d_weights
+    // calculate delta_weights
     short internal = args.ed_tunits - args.st_tunits;
-    float *input_col = (float *)malloc( owoh * internal * sizeof(float));
-    float *d_weights = (float *)malloc( oc * internal * sizeof(float));
+    float *t_input_col = (float *)malloc( owoh * internal * sizeof(float));
+    float *t_d_weights = (float *)malloc( oc * internal * sizeof(float));
     for(int p=0; p< args.op->batchsize; p++)
     {
         for(int j=0; j<owoh; j++)
         {
-            register int w_offset = j*internal;
-            register int ow_offset = p*owoh*ikk + j*ikk + args.st_tunits;
-            for(int i=0; i<internal; i++)
-            {
-                input_col[w_offset++] = args.op->input_col[ow_offset++];
-            }
+            memcpy((void *)(t_input_col+j*internal), 
+                    (void *)(args.op->input_col+p*owoh*ikk + j*ikk + args.st_tunits),
+                        sizeof(float)*internal);
         }
-        memset(d_weights, 0,  oc * internal * sizeof(float));
-        matrix_multiply(args.op->d_output, input_col, d_weights, oc, owoh, internal);
+        memset(t_d_weights, 0,  oc * internal * sizeof(float));
+        matrix_multiply(args.op->d_output, t_input_col, t_d_weights, oc, owoh, internal);
 
         for(int j=0; j<oc; j++)
         {
             register int o_offset = j*internal;
             register int oo_offset = j*ikk + args.st_tunits;
             for(int i=0; i<internal; i++)
-                args.op->d_weights[oo_offset++] += d_weights[o_offset++] / args.op->batchsize; 
+                args.op->d_weights[oo_offset++] += t_d_weights[o_offset++] / args.op->batchsize; 
         }
     }
-    free(d_weights);
-    free(input_col);
+    free(t_d_weights);
+    free(t_input_col);
 
     if( args.st_tunits == 0 )
     {
+        // calculte delta_input and delta_bias
         for(int i=0; i< args.op->out_channels; i++)
         {
             register int tmp=0;
@@ -231,7 +231,7 @@ void conv_op_backward(conv_op *op)
      *      op->d_bias
      *      op->d_input
      * */
-    short tnum = 12;
+    short tnum = 12; // number of threads
     if(op->in_channels * op->kernel_size * op->kernel_size < tnum)
     {
         conv_args args;
@@ -253,10 +253,22 @@ void conv_op_backward(conv_op *op)
         }
 
         for(int p=0; p<tnum; p++)
-        {
             pthread_join(tid[p], NULL);
-        }
     }
     free(op->input_col);
 
+}
+
+
+void save_conv_weights(conv_op *op, FILE *fp)
+{
+    fwrite(op->weights, sizeof(float), op->out_channels * op->in_channels * op->kernel_size * op->kernel_size, fp);
+    fwrite(op->bias, sizeof(float), op->out_units, fp);
+}
+
+
+void load_conv_weights(conv_op *op, FILE *fp)
+{
+    fread(op->weights, sizeof(float), op->out_channels * op->in_channels * op->kernel_size * op->kernel_size, fp);
+    fread(op->bias, sizeof(float), op->out_channels, fp);
 }

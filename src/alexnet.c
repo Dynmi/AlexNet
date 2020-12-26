@@ -521,8 +521,73 @@ static void gauss_initialization(float *p, int n, int in_units, int out_units)
     }
 }
 
-void set_alexnet(alexnet *net, short batchsize)
+
+//
+// save trainable weights of network
+//
+void save_alexnet(alexnet *net, char *filename)
 {
+    /**
+     * save weights of net to file
+     * */
+    FILE *fp = fopen(filename, "wb");
+
+    save_conv_weights(&(net->conv1), fp);
+    save_conv_weights(&(net->conv2), fp);
+    save_conv_weights(&(net->conv3), fp);
+    save_conv_weights(&(net->conv4), fp);
+    save_conv_weights(&(net->conv5), fp);
+
+    save_batchnorm_weights(&(net->bn1), fp);
+    save_batchnorm_weights(&(net->bn2), fp);
+    save_batchnorm_weights(&(net->bn3), fp);
+    save_batchnorm_weights(&(net->bn4), fp);
+    save_batchnorm_weights(&(net->bn5), fp);
+
+    save_fc_weights(&(net->fc1), fp);
+    save_fc_weights(&(net->fc2), fp);
+    save_fc_weights(&(net->fc3), fp);
+    
+    fclose(fp);
+    printf("Save weights to \"%s\" successfully... \n", filename);
+}
+
+//
+// load trainable weights of network
+//
+void load_alexnet(alexnet *net, char *filename)
+{
+    /**
+     * load weights of network from file
+     * */
+    FILE *fp = fopen(filename, "rb");
+
+    load_conv_weights(&(net->conv1), fp);
+    load_conv_weights(&(net->conv2), fp);
+    load_conv_weights(&(net->conv3), fp);
+    load_conv_weights(&(net->conv4), fp);
+    load_conv_weights(&(net->conv5), fp);
+
+    load_batchnorm_weights(&(net->bn1), fp);
+    load_batchnorm_weights(&(net->bn2), fp);
+    load_batchnorm_weights(&(net->bn3), fp);
+    load_batchnorm_weights(&(net->bn4), fp);
+    load_batchnorm_weights(&(net->bn5), fp);
+
+    load_fc_weights(&(net->fc1), fp);
+    load_fc_weights(&(net->fc2), fp);
+    load_fc_weights(&(net->fc3), fp);
+    
+    fclose(fp);
+    printf("Load weights from \"%s\" successfully... \n", filename);
+}
+
+
+void set_alexnet(alexnet *net, short batchsize, char *weights_path)
+{
+    /**
+     * initialize alexnet
+     * */
     net->batchsize = batchsize;
     net->conv1.batchsize = batchsize;
     net->conv2.batchsize = batchsize;
@@ -671,6 +736,14 @@ void set_alexnet(alexnet *net, short batchsize)
     net->fc3.in_units = FC7_LAYER;
     net->fc3.out_units = OUT_LAYER;
 
+
+    if(weights_path!=NULL) // load a pre-trained model
+    {
+        load_alexnet(net, weights_path);
+        return;
+    }
+
+    // initialize weights for this network
     gauss_initialization(net->conv1.weights, C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L, net->conv1.in_units, net->conv1.out_units);
     gauss_initialization(net->conv2.weights, C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L, net->conv2.in_units, net->conv2.out_units);
     gauss_initialization(net->conv3.weights, C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L, net->conv3.in_units, net->conv3.out_units);
@@ -741,35 +814,64 @@ int main(int argc, char* argv[])
     if( 0 == strcmp(argv[1], "train"))
     {
         // 
-        // $./alexnet train -batchsize 4 -epochs 1000
+        // $./alexnet train -batchsize 4 -epochs 1000 -load_pretrained ./in.weights -save ./out.weights
         //
-        int batchsize = 8, 
-            epochs = 1000;
+        int     batchsize = 8, 
+                epochs = 1000;
+        short   is_save=0, 
+                is_load=0;
+        char    weights_in_path[256];
+        char    weights_out_path[256]; 
         for(int i=2; i<argc-1; i++)
         {
             if(0==strcmp(argv[i], "-batchsize"))
-                sscanf(argv[i+1],"%d",&batchsize);
+                sscanf(argv[i+1], "%d", &batchsize);
             if(0==strcmp(argv[i], "-epochs"))
-                sscanf(argv[i+1],"%d",&epochs);
+                sscanf(argv[i+1], "%d", &epochs);
+            if(0==strcmp(argv[i], "-load_pretrained"))
+            {
+                is_load=1;
+                sprintf(weights_in_path, "%s", argv[i+1]);
+            }
+            if(0==strcmp(argv[i], "-save"))
+            {
+                is_save=1;
+                sprintf(weights_out_path, "%s", argv[i+1]);
+            }
         }
-        malloc_alexnet(&net);    
-        set_alexnet(&net, batchsize);
-        printf("\nalexnet setup fininshed. Waiting for training...\n");
+
         printf("batch size: %d \n", batchsize);
         printf("epochs: %d \n", epochs);
+
+        malloc_alexnet(&net);    
+        if(is_load)
+        {
+            set_alexnet(&net, batchsize, weights_in_path);
+        }else{
+            set_alexnet(&net, batchsize, NULL);
+        }
         alexnet_train(&net, epochs);
+        if(is_save)
+            save_alexnet(&net, weights_out_path);
         free_alexnet(&net);
 
     }else if( 0 == strcmp(argv[1], "inference"))
     {
         //
-        // $./alexnet inference ./data/0001.jpeg
+        // $./alexnet inference -input ./data/0001.jpeg -load ./a1.weights
         //
+        char img_path[256];
+        char weights_path[256];
+        for(int i=2; i<argc-1; i++)
+        {
+            if(0==strcmp(argv[i], "-input"))
+                sprintf(img_path, "%s", argv[i+1]);
+            if(0==strcmp(argv[i], "-load"))
+                sprintf(weights_path, "%s", argv[i+1]);
+        }
         malloc_alexnet(&net);    
-        set_alexnet(&net, 1);
-        //
-        // TODO: load pretrained model
-        //
+        set_alexnet(&net, 1, weights_path);
+        load_alexnet(&net, weights_path);
         printf("alexnet setup fininshed. Waiting for inference...\n");
         alexnet_inference(&net, argv[2]);
         free_alexnet(&net);

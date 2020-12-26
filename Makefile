@@ -16,12 +16,14 @@ TAR_OBJS = $(addprefix $(OBJDIR), $(TAR_OBJ))
 $(OBJDIR):
 	mkdir -p $(OBJDIR) 
 
-$(TARGET):
+$(TARGET): $(TAR_OBJS)
+	$(CC) -o $(OBJDIR)matrix.o -c $(SRC)matrix.c $(CLFAGS)
+	$(CC) -o $@	$(SRC)alexnet.c $(LAYER_OBJS) $(TAR_OBJS) $(OBJDIR)matrix.o $(CLFAGS)
+
+$(TAR_OBJS):
 	$(CC) -o $(OBJDIR)train.o -c $(SRC)train.c $(CLFAGS)
 	$(CC) -o $(OBJDIR)inference.o -c $(SRC)inference.c $(CLFAGS)
 	$(CC) -o $(OBJDIR)data.o -c $(SRC)data.c $(CLFAGS)
-	$(CC) -o $(OBJDIR)matrix.o -c $(SRC)matrix.c $(CLFAGS)
-	$(CC) -o $@	$(SRC)alexnet.c $(LAYER_OBJS) $(OBJDIR)data.o $(OBJDIR)inference.o $(OBJDIR)train.o $(OBJDIR)matrix.o $(CLFAGS)
 
 $(LAYER_OBJS):
 	$(CC) -o $(OBJDIR)activation_layer.o -c $(SRC)activation_layer.c $(CLFAGS)

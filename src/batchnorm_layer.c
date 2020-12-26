@@ -4,6 +4,7 @@
 // Author:      Haris Wang
 //
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include "batchnorm_layer.h"
 
@@ -17,7 +18,8 @@ void batch_norm_op_forward(batch_norm_op *op)
     op->x_norm = (float *)malloc(sizeof(float) * op->batchsize * (op->units));
 
     register int i, p;
-    // calculate mean & variance for each unit along batch axis
+
+    // calculate mean for each unit along batch axis
     register int offset=0;
     for (p = 0; p < op->batchsize; p++)
     {
@@ -27,6 +29,7 @@ void batch_norm_op_forward(batch_norm_op *op)
     for (i = 0; i < op->units; i++)
         op->avg[i] /= op->batchsize;
 
+    // calculate variance for each unit along batch axis
     offset=0;
     for (p = 0; p < op->batchsize; p++)
     {
@@ -63,7 +66,7 @@ void batch_norm_op_backward(batch_norm_op *op)
     int units = op->units;
     float *x_norm_avg = (float *)calloc(units, sizeof(float));
 
-    // calculate d_gamma
+    // calculate delta_gamma
     register int offset=0;
     for(int p=0; p<op->batchsize; p++)
     {
@@ -73,25 +76,39 @@ void batch_norm_op_backward(batch_norm_op *op)
     for(int i=0; i<units; i++)
         op->d_gamma[i] /= op->batchsize;
 
-    // calculate d_beta
+    // calculate delta_beta
     for(int i=0; i<units; i++)
         op->d_beta[i] += op->d_output[i];
 
-    // calculate x_norm_average
+    // calculate average of normlized x along batch axis
     offset=0;
     for(int p=0; p<op->batchsize; p++)
     {
         for(int i=0; i<units; i++)
             x_norm_avg[i] += op->x_norm[offset++];
     }
-
     for(int i=0; i<units; i++)
         x_norm_avg[i] /= op->batchsize;
 
+    // calculate delta_input
     for(int i=0; i<units; i++)
         op->d_input[i] = 0 - op->gamma[i] * op->d_output[i] * x_norm_avg[i] / sqrt(op->var[i]+EPSILON); 
 
     free(x_norm_avg);
     free(op->var);
     free(op->x_norm);
+}
+
+
+void save_batchnorm_weights(batch_norm_op *op, FILE *fp)
+{
+    fwrite(op->gamma, sizeof(float), op->units, fp);
+    fwrite(op->beta, sizeof(float), op->units, fp);
+}
+
+
+void load_batchnorm_weights(batch_norm_op *op, FILE *fp)
+{
+    fread(op->gamma, sizeof(float), op->units, fp);
+    fread(op->beta, sizeof(float), op->units, fp);
 }

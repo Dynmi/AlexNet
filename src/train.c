@@ -1,6 +1,6 @@
 //
 // File:        train.c
-// Description: Implementation of train functions
+// Description: Implementation of functions related to training
 // Author:      Haris Wang
 //
 #include <stdlib.h>

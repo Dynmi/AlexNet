@@ -1,6 +1,6 @@
 //
-// File:        predict.c
-// Description: Implementation of predict function
+// File:        inference.c
+// Description: Implementation of inference function
 // Author:      Haris Wang
 //
 #include <stdlib.h>

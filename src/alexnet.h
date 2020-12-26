@@ -59,7 +59,7 @@
 
 #define FC6_LAYER   4096
 #define FC7_LAYER   4096
-#define OUT_LAYER   1000
+#define OUT_LAYER   100
 #define DROPOUT_PROB  0.4
 
 
@@ -122,7 +122,7 @@ int argmax(float *arr, int n);
 void malloc_alexnet(alexnet *net);
 void free_alexnet(alexnet *net);
 
-void set_alexnet(alexnet *net, short batchsize);
+void set_alexnet(alexnet *net, short batchsize, char *weights_path);
 
 void forward_alexnet(alexnet *net);
 void backward_alexnet(alexnet *net, int *batch_Y);

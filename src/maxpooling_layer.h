@@ -18,5 +18,4 @@ typedef struct max_pooling_op {
 } max_pooling_op;
 
 void max_pooling_op_forward(max_pooling_op *op);
-
 void max_pooling_op_backward(max_pooling_op *op);
