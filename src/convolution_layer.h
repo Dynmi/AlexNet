@@ -6,10 +6,10 @@
 #include <stdlib.h>
 
 typedef struct conv_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
+    float *input;   float *d_input;
+    float *output;  float *d_output;
     float *weights; float *d_weights;
-    float *bias; float *d_bias;
+    float *bias;    float *d_bias;
     float *input_col;
 
     int in_channels, out_channels;

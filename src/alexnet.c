@@ -33,24 +33,24 @@ void metrics(float *ret, int *preds, int *labels,
     memset(totLabel, 0, classes * sizeof(int));
     memset(TP, 0, classes * sizeof(int));
 
-    for(int p=0; p<totNum; p++)
+    for (int p = 0; p < totNum; p++)
     {
         totPred[preds[p]]++;
         totLabel[labels[p]]++;
-        if(preds[p]==labels[p])
+        if(preds[p] == labels[p])
         {
             TP[preds[p]]++;
         }
     }
 
     int tmp_a=0, tmp_b=0;
-    for(int p=0; p<classes; p++)
+    for (int p =0 ; p < classes; p++)
     {
         tmp_a += TP[p];
     }
     float accuracy = tmp_a * 1.0 / totNum;
 
-    if(type==METRIC_ACCURACY)
+    if (type == METRIC_ACCURACY)
     {
         *ret = accuracy;
         free(totPred);
@@ -61,14 +61,14 @@ void metrics(float *ret, int *preds, int *labels,
 
     float precisions[classes];
     float macro_p = 0;
-    for(int p=0; p<classes; p++)
+    for (int p = 0; p < classes; p++)
     {
         precisions[p] = TP[p] / totLabel[p];
         macro_p += precisions[p];
     }
     macro_p /= classes;
 
-    if(type==METRIC_PRECISION)
+    if (type == METRIC_PRECISION)
     {
         *ret = macro_p;
         free(totPred);
@@ -79,14 +79,14 @@ void metrics(float *ret, int *preds, int *labels,
 
     float recalls[classes];
     float macro_r = 0;
-    for(int p=0; p<classes; p++)
+    for (int p = 0; p < classes; p++)
     {
         recalls[p] = TP[p] / totPred[p];
         macro_r += recalls[p];
     }
     macro_r /= classes;
 
-    if(type==METRIC_RECALL)
+    if (type == METRIC_RECALL)
     {
         *ret = macro_r;
         free(totPred);
@@ -95,7 +95,7 @@ void metrics(float *ret, int *preds, int *labels,
         return;
     }
 
-    if(type==METRIC_F1SCORE)
+    if (type == METRIC_F1SCORE)
     {
         *ret = 2*macro_p*macro_r / (macro_p+macro_r);
         free(totPred);
@@ -109,7 +109,6 @@ void metrics(float *ret, int *preds, int *labels,
     free(TP);
 }
 
-
 int argmax(float *arr, int n)
 {
     /**
@@ -121,11 +120,11 @@ int argmax(float *arr, int n)
      * Return:
      *      the index of max-value
      * */ 
-    int idx = -1;
-    float max = -11111111;
-    for(int p=0; p<n; p++)
+    int   idx = -1;
+    float max = -1111111111;
+    for (int p = 0; p<n; p++)
     {
-        if(arr[p] > max)
+        if (arr[p] > max)
         {
             idx = p;
             max = arr[p];
@@ -340,7 +339,6 @@ void forward_alexnet(alexnet *net)
         }
     } */
 
-
     net->relu5.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu5.units);
     net->relu5.input = net->bn5.output;
     relu_op_forward(&(net->relu5));
@@ -421,30 +419,29 @@ void malloc_alexnet(alexnet *net)
     net->conv3.weights = (float *)malloc(sizeof(float) * C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L);
     net->conv4.weights = (float *)malloc(sizeof(float) * C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L);
     net->conv5.weights = (float *)malloc(sizeof(float) * C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L);
-    net->fc1.weights = (float *)malloc(sizeof(float) * C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L);
-    net->fc2.weights = (float *)malloc(sizeof(float) * FC6_LAYER*FC7_LAYER);
-    net->fc3.weights = (float *)malloc(sizeof(float) * FC7_LAYER*OUT_LAYER);
+    net->fc1.weights   = (float *)malloc(sizeof(float) * C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L);
+    net->fc2.weights   = (float *)malloc(sizeof(float) * FC6_LAYER*FC7_LAYER);
+    net->fc3.weights   = (float *)malloc(sizeof(float) * FC7_LAYER*OUT_LAYER);
 
     net->conv1.bias = (float *)malloc(sizeof(float) * C1_CHANNELS);
     net->conv2.bias = (float *)malloc(sizeof(float) * C2_CHANNELS);
     net->conv3.bias = (float *)malloc(sizeof(float) * C3_CHANNELS);
     net->conv4.bias = (float *)malloc(sizeof(float) * C4_CHANNELS);
     net->conv5.bias = (float *)malloc(sizeof(float) * C5_CHANNELS);
-    net->fc1.bias = (float *)malloc(sizeof(float) * FC6_LAYER);
-    net->fc2.bias = (float *)malloc(sizeof(float) * FC7_LAYER);
-    net->fc3.bias = (float *)malloc(sizeof(float) * OUT_LAYER);
+    net->fc1.bias   = (float *)malloc(sizeof(float) * FC6_LAYER);
+    net->fc2.bias   = (float *)malloc(sizeof(float) * FC7_LAYER);
+    net->fc3.bias   = (float *)malloc(sizeof(float) * OUT_LAYER);
 
     net->bn1.gamma = (float *)malloc(sizeof(float) * C1_CHANNELS*FEATURE1_L*FEATURE1_L);
     net->bn2.gamma = (float *)malloc(sizeof(float) * C2_CHANNELS*FEATURE2_L*FEATURE2_L);
     net->bn3.gamma = (float *)malloc(sizeof(float) * C3_CHANNELS*FEATURE3_L*FEATURE3_L);
     net->bn4.gamma = (float *)malloc(sizeof(float) * C4_CHANNELS*FEATURE4_L*FEATURE4_L);
     net->bn5.gamma = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
-
-    net->bn1.beta = (float *)malloc(sizeof(float) * C1_CHANNELS*FEATURE1_L*FEATURE1_L);
-    net->bn2.beta = (float *)malloc(sizeof(float) * C2_CHANNELS*FEATURE2_L*FEATURE2_L);
-    net->bn3.beta = (float *)malloc(sizeof(float) * C3_CHANNELS*FEATURE3_L*FEATURE3_L);
-    net->bn4.beta = (float *)malloc(sizeof(float) * C4_CHANNELS*FEATURE4_L*FEATURE4_L);
-    net->bn5.beta = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
+    net->bn1.beta  = (float *)malloc(sizeof(float) * C1_CHANNELS*FEATURE1_L*FEATURE1_L);
+    net->bn2.beta  = (float *)malloc(sizeof(float) * C2_CHANNELS*FEATURE2_L*FEATURE2_L);
+    net->bn3.beta  = (float *)malloc(sizeof(float) * C3_CHANNELS*FEATURE3_L*FEATURE3_L);
+    net->bn4.beta  = (float *)malloc(sizeof(float) * C4_CHANNELS*FEATURE4_L*FEATURE4_L);
+    net->bn5.beta  = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
 }
 
 void free_alexnet(alexnet *net)
@@ -481,12 +478,10 @@ void free_alexnet(alexnet *net)
 }
 
 
-static float U_Random()
+static inline float U_Random(void)
 {
-    float f;
     srand( (unsigned)time( NULL ) );
-    f = (float)(rand() % 100);
-    return f/100;
+    return (float)(rand() % 100) / 100;
 }
 
 static void gauss_initialization(float *p, int n, int in_units, int out_units)
@@ -494,13 +489,11 @@ static void gauss_initialization(float *p, int n, int in_units, int out_units)
     float mean  = 0;
     float stddv = 0.01;
 
-	float V1, V2, S;
+	float V1, V2, S, X;
 	static int phase = 0;
-	float X;
-    for(int shift=0; shift<n; shift++)
+    for (int shift = 0; shift < n; shift++)
     {
-        if(phase == 0) 
-        {
+        if (phase == 0) {
             do {
                 float U1 = (float) rand() / RAND_MAX;
                 float U2 = (float) rand() / RAND_MAX;
@@ -511,8 +504,7 @@ static void gauss_initialization(float *p, int n, int in_units, int out_units)
             } while (S >= 1 || S == 0);
     
             X = V1 * sqrt(-2 * log(S) / S);
-        }else
-        {
+        }else {
             X = V2 * sqrt(-2 * log(S) / S);
         }
         phase = 1 - phase;
@@ -594,17 +586,17 @@ void set_alexnet(alexnet *net, short batchsize, char *weights_path)
     net->conv3.batchsize = batchsize;
     net->conv4.batchsize = batchsize;
     net->conv5.batchsize = batchsize;
-    net->fc1.batchsize = batchsize;
-    net->fc2.batchsize = batchsize;
-    net->fc3.batchsize = batchsize;
-    net->bn1.batchsize = batchsize;
-    net->bn2.batchsize = batchsize;
-    net->bn3.batchsize = batchsize;
-    net->bn4.batchsize = batchsize;
-    net->bn5.batchsize = batchsize;
-    net->mp1.batchsize = batchsize;
-    net->mp2.batchsize = batchsize;
-    net->mp5.batchsize = batchsize;
+    net->fc1.batchsize   = batchsize;
+    net->fc2.batchsize   = batchsize;
+    net->fc3.batchsize   = batchsize;
+    net->bn1.batchsize   = batchsize;
+    net->bn2.batchsize   = batchsize;
+    net->bn3.batchsize   = batchsize;
+    net->bn4.batchsize   = batchsize;
+    net->bn5.batchsize   = batchsize;
+    net->mp1.batchsize   = batchsize;
+    net->mp2.batchsize   = batchsize;
+    net->mp5.batchsize   = batchsize;
     net->relu1.batchsize = batchsize;
     net->relu2.batchsize = batchsize;
     net->relu3.batchsize = batchsize;
@@ -737,7 +729,7 @@ void set_alexnet(alexnet *net, short batchsize, char *weights_path)
     net->fc3.out_units = OUT_LAYER;
 
 
-    if(weights_path!=NULL) // load a pre-trained model
+    if(weights_path != NULL) // load a pre-trained model
     {
         load_alexnet(net, weights_path);
         return;
@@ -772,33 +764,21 @@ void set_alexnet(alexnet *net, short batchsize, char *weights_path)
         net->fc3.bias[i] = 1;
 
     for(i=0; i<(net->bn1.units); i++)
-    {
         net->bn1.gamma[i] = 1;
-        net->bn1.beta[i] = 0;
-    }
     for(i=0; i<(net->bn2.units); i++)
-    {
         net->bn2.gamma[i] = 1;
-        net->bn2.beta[i] = 0;
-    }
     for(i=0; i<(net->bn3.units); i++)
-    {
         net->bn3.gamma[i] = 1;
-        net->bn3.beta[i] = 0;
-    }
-
     for(i=0; i<(net->bn4.units); i++)
-    {
         net->bn4.gamma[i] = 1;
-        net->bn4.beta[i] = 0;
-    }
-
     for(i=0; i<(net->bn5.units); i++)
-    {
         net->bn5.gamma[i] = 1;
-        net->bn5.beta[i] = 0;
-    }
-
+    
+    memset(net->bn1.beta, 0, sizeof(float)*(net->bn1.units));
+    memset(net->bn2.beta, 0, sizeof(float)*(net->bn2.units));
+    memset(net->bn3.beta, 0, sizeof(float)*(net->bn3.units));
+    memset(net->bn4.beta, 0, sizeof(float)*(net->bn4.units));
+    memset(net->bn5.beta, 0, sizeof(float)*(net->bn5.units));
 }
 
 
@@ -811,7 +791,7 @@ int main(int argc, char* argv[])
      * */
     static alexnet net;
     
-    if( 0 == strcmp(argv[1], "train"))
+    if (0 == strcmp(argv[1], "train"))
     {
         // 
         // $./alexnet train -batchsize 4 -epochs 1000 -load_pretrained ./in.weights -save ./out.weights
@@ -822,18 +802,18 @@ int main(int argc, char* argv[])
                 is_load=0;
         char    weights_in_path[256];
         char    weights_out_path[256]; 
-        for(int i=2; i<argc-1; i++)
+        for (int i = 2; i < argc-1; i++)
         {
-            if(0==strcmp(argv[i], "-batchsize"))
+            if (0 == strcmp(argv[i], "-batchsize"))
                 sscanf(argv[i+1], "%d", &batchsize);
-            if(0==strcmp(argv[i], "-epochs"))
+            if (0 == strcmp(argv[i], "-epochs"))
                 sscanf(argv[i+1], "%d", &epochs);
-            if(0==strcmp(argv[i], "-load_pretrained"))
+            if (0 == strcmp(argv[i], "-load_pretrained"))
             {
                 is_load=1;
                 sprintf(weights_in_path, "%s", argv[i+1]);
             }
-            if(0==strcmp(argv[i], "-save"))
+            if (0 == strcmp(argv[i], "-save"))
             {
                 is_save=1;
                 sprintf(weights_out_path, "%s", argv[i+1]);
@@ -844,29 +824,28 @@ int main(int argc, char* argv[])
         printf("epochs: %d \n", epochs);
 
         malloc_alexnet(&net);    
-        if(is_load)
-        {
+        if (is_load) {
             set_alexnet(&net, batchsize, weights_in_path);
-        }else{
+        }else {
             set_alexnet(&net, batchsize, NULL);
         }
         alexnet_train(&net, epochs);
-        if(is_save)
+        if (is_save)
             save_alexnet(&net, weights_out_path);
         free_alexnet(&net);
 
-    }else if( 0 == strcmp(argv[1], "inference"))
+    }else if (0 == strcmp(argv[1], "inference"))
     {
         //
         // $./alexnet inference -input ./data/0001.jpeg -load ./a1.weights
         //
         char img_path[256];
         char weights_path[256];
-        for(int i=2; i<argc-1; i++)
+        for (int i = 2; i < argc-1; i++)
         {
-            if(0==strcmp(argv[i], "-input"))
+            if (0 == strcmp(argv[i], "-input"))
                 sprintf(img_path, "%s", argv[i+1]);
-            if(0==strcmp(argv[i], "-load"))
+            if (0 == strcmp(argv[i], "-load"))
                 sprintf(weights_path, "%s", argv[i+1]);
         }
         malloc_alexnet(&net);    
@@ -875,9 +854,7 @@ int main(int argc, char* argv[])
         printf("alexnet setup fininshed. Waiting for inference...\n");
         alexnet_inference(&net, argv[2]);
         free_alexnet(&net);
-
-    }else{
+    }else {
         printf("Error: Unknown argument!!! \n");
     }
-
 }

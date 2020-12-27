@@ -19,9 +19,9 @@ void make_image(image *img, int w, int h, int c)
     /**
      * Make image
      * 
-     * Input
+     * Input:
      *      w, h, c
-     * Output
+     * Output:
      *      img
      * */
     img->w = w;
@@ -35,12 +35,11 @@ void free_image(image *img)
     /**
      * free image
      * 
-     * Input
+     * Input:
      *      img
      * */
-    if(img->data){
+    if (img->data)
         free(img->data);
-    }
 }
 
 
@@ -73,15 +72,15 @@ image resize_image(image im, int w, int h)
             h_scale = (im.h-1) * 1.0 / (h-1);
     register float val;
     register unsigned int r, c, k;
-    for(k = 0; k < im.c; ++k){
-        for(r = 0; r < im.h; ++r){
-            for(c = 0; c < w; ++c){
+    for (k = 0; k < im.c; ++k){
+        for (r = 0; r < im.h; ++r){
+            for (c = 0; c < w; ++c){
                 val = 0;
-                if(c == w-1 || im.w == 1){
+                if (c == w-1 || im.w == 1) {
                     val = get_pixel(im, im.w-1, r, k);
-                } else {
-                    float sx = c*w_scale;
-                    int ix = (int) sx;
+                }else {
+                    float sx = c * w_scale;
+                    int   ix = (int)sx;
                     float dx = sx - ix;
                     val = (1 - dx) * get_pixel(im, ix, r, k) + dx * get_pixel(im, ix+1, r, k);
                 }
@@ -89,17 +88,17 @@ image resize_image(image im, int w, int h)
             }
         }
     }
-    for(k = 0; k < im.c; ++k){
-        for(r = 0; r < h; ++r){
-            float sy = r*h_scale;
-            int iy = (int) sy;
+    for (k = 0; k < im.c; ++k){
+        for (r = 0; r < h; ++r){
+            float sy = r * h_scale;
+            int   iy = (int) sy;
             float dy = sy - iy;
-            for(c = 0; c < w; ++c){
+            for (c = 0; c < w; ++c){
                 val = (1-dy) * get_pixel(part, c, iy, k);
                 set_pixel(&resized, val, c, r, k);
             }
-            if(r == h-1 || im.h == 1) continue;
-            for(c = 0; c < w; ++c){
+            if (r == h-1 || im.h == 1) continue;
+            for (c = 0; c < w; ++c){
                 val = dy * get_pixel(part, c, iy+1, k);
                 add_pixel(&resized, val, c, r, k);
             }
@@ -110,44 +109,46 @@ image resize_image(image im, int w, int h)
     return resized;
 }
 
-
 image load_image(char *filename, int W, int H, int channels)
 {
     /**
      * load image from file
+     * 
      * Input:
      *      filename
      *      channels
-     * Output:
      * Return:
      *      image
      * */
     int w, h, c;
     unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
-    if(!data)
+    if (!data)
     {
         printf("Error! Can't load image %s! \n", filename);
         exit(0);
     }
-    if(channels) c=channels;
+    if (channels)
+    {
+        c=channels;
+    } 
     image img;
     make_image(&img, w, h, c);
     register int dst_idx, src_idx;
-    for(int k=0; k<c; k++)
+    for (int k = 0; k < c; k++)
     {
-        for(int j=0; j<h; j++)
+        for (int j = 0; j < h; j++)
         {
-            for(int i=0; i<w; i++)
+            for (int i = 0; i < w; i++)
             {
                 dst_idx = i + w*j + w*h*k;
                 src_idx = k + c*i + c*w*j;
-                img.data[dst_idx] = (float)data[src_idx]/127.5 - 1;
+                img.data[dst_idx] = (float)data[src_idx] / 127.5 - 1;
             }
         }
     }
     free(data);
 
-    if((h&&w) && (H!=img.h || W!=img.w))
+    if ((h&&w) && (H!=img.h || W!=img.w))
     {
         image resized = resize_image(img, H, W);
         free_image(&img);
@@ -162,6 +163,7 @@ void get_random_batch(int n, float *X, int *Y,
 {
     /**
      * sample random batch of data
+     * 
      * Input:
      *      n
      *      w, h, c
@@ -174,7 +176,7 @@ void get_random_batch(int n, float *X, int *Y,
     make_image(&img, w, h, c);
     char imgpath[256];
     srand( (unsigned)time( NULL ) );
-    for (int i=0; i<n; i++)
+    for (int i = 0; i < n; i++)
     {
         //sprintf(imgpath, "C:\\Download\\AlexNet7-test\\imagenet-mini\\train\\%d\\%d.jpeg", label, rand()%15);
         register int label = rand()%CLASSES;
@@ -185,7 +187,6 @@ void get_random_batch(int n, float *X, int *Y,
         Y[i] = label;
     }
 }
-
 
 void get_next_batch(int n, float *X, float *y, 
                         int offset, int IMG_SIZE, int LABEL_SIZE)

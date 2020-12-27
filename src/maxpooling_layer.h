@@ -7,7 +7,7 @@
 
 
 typedef struct max_pooling_op {
-    float *input; float *d_input;
+    float *input;  float *d_input;
     float *output; float *d_output;
     int channels;
     int kernel_size; int stride;

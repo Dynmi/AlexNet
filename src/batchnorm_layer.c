@@ -10,17 +10,17 @@
 
 void batch_norm_op_forward(batch_norm_op *op)
 {
-    register float *input = op->input;
+    register float *input  = op->input;
     register float *output = op->output;
 
-    op->avg = (float *)calloc(op->units, sizeof(float));
-    op->var = (float *)calloc(op->units, sizeof(float));
-    op->x_norm = (float *)malloc(sizeof(float) * op->batchsize * (op->units));
+    op->avg    = (float *)calloc(op->units, sizeof(float));
+    op->var    = (float *)calloc(op->units, sizeof(float));
+    op->x_norm = (float *)malloc(op->batchsize * (op->units) * sizeof(float));
 
     register int i, p;
 
     // calculate mean for each unit along batch axis
-    register int offset=0;
+    register int offset = 0;
     for (p = 0; p < op->batchsize; p++)
     {
         for (i = 0; i < op->units; i++)
@@ -30,7 +30,7 @@ void batch_norm_op_forward(batch_norm_op *op)
         op->avg[i] /= op->batchsize;
 
     // calculate variance for each unit along batch axis
-    offset=0;
+    offset = 0;
     for (p = 0; p < op->batchsize; p++)
     {
         for (i = 0; i < op->units; i++)
@@ -44,7 +44,7 @@ void batch_norm_op_forward(batch_norm_op *op)
 
     register float *gamma = op->gamma;
     register float *beta = op->beta;
-    offset=0;
+    offset = 0;
     for (p = 0; p < op->batchsize; p++)
     {
         for (i = 0; i < op->units; i++)
@@ -60,38 +60,37 @@ void batch_norm_op_forward(batch_norm_op *op)
     free(op->avg);
 }
 
-
 void batch_norm_op_backward(batch_norm_op *op)
 {
-    int units = op->units;
+    int   units       = op->units;
     float *x_norm_avg = (float *)calloc(units, sizeof(float));
 
     // calculate delta_gamma
-    register int offset=0;
-    for(int p=0; p<op->batchsize; p++)
+    register int offset = 0;
+    for (int p = 0; p < op->batchsize; p++)
     {
-        for(int i=0; i<units; i++)
+        for (int i = 0; i < units; i++)
             op->d_gamma[i] += op->x_norm[offset++] * op->d_output[i];
     }
-    for(int i=0; i<units; i++)
+    for (int i = 0; i < units; i++)
         op->d_gamma[i] /= op->batchsize;
 
     // calculate delta_beta
-    for(int i=0; i<units; i++)
+    for (int i = 0; i < units; i++)
         op->d_beta[i] += op->d_output[i];
 
     // calculate average of normlized x along batch axis
-    offset=0;
-    for(int p=0; p<op->batchsize; p++)
+    offset = 0;
+    for (int p = 0; p < op->batchsize; p++)
     {
-        for(int i=0; i<units; i++)
+        for (int i = 0; i < units; i++)
             x_norm_avg[i] += op->x_norm[offset++];
     }
-    for(int i=0; i<units; i++)
+    for (int i = 0; i < units; i++)
         x_norm_avg[i] /= op->batchsize;
 
     // calculate delta_input
-    for(int i=0; i<units; i++)
+    for (int i = 0; i < units; i++)
         op->d_input[i] = 0 - op->gamma[i] * op->d_output[i] * x_norm_avg[i] / sqrt(op->var[i]+EPSILON); 
 
     free(x_norm_avg);
@@ -103,12 +102,11 @@ void batch_norm_op_backward(batch_norm_op *op)
 void save_batchnorm_weights(batch_norm_op *op, FILE *fp)
 {
     fwrite(op->gamma, sizeof(float), op->units, fp);
-    fwrite(op->beta, sizeof(float), op->units, fp);
+    fwrite(op->beta,  sizeof(float), op->units, fp);
 }
-
 
 void load_batchnorm_weights(batch_norm_op *op, FILE *fp)
 {
     fread(op->gamma, sizeof(float), op->units, fp);
-    fread(op->beta, sizeof(float), op->units, fp);
+    fread(op->beta,  sizeof(float), op->units, fp);
 }
