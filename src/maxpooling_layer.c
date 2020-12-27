@@ -21,10 +21,10 @@ static void* pthread_mp_op_forward(void *argv)
 {
     mp_args mp;
     memcpy(&mp, (mp_args *)argv, sizeof(mp_args));
-    register float *input = mp.op->input + mp.batch_id * mp.op->in_units;
+    register float *input  = mp.op->input + mp.batch_id * mp.op->in_units;
     register float *output = mp.op->output + mp.batch_id * mp.op->out_units;
-    int channels = mp.op->channels;
-    int strides = mp.op->stride;
+    int channels  = mp.op->channels;
+    int strides   = mp.op->stride;
     int pool_size = mp.op->kernel_size;
 
     register int o_x, o_y;
@@ -62,37 +62,31 @@ static void* pthread_mp_op_forward(void *argv)
             o_y++;
         }
     }
-
-
 }
 
 void max_pooling_op_forward(max_pooling_op *op)
 {
     mp_args args[op->batchsize+1];
     pthread_t tid[op->batchsize+1];
-    for(int p=0; p<op->batchsize; p++)
+    for (int p = 0; p < op->batchsize; p++)
     {
         args[p].op = op;
         args[p].batch_id = p;
         pthread_create(&tid[p], NULL, pthread_mp_op_forward, (void *)(&args[p]));
     }
     
-    for(int p=0; p< op->batchsize; p++)
-    {
+    for (int p = 0; p < op->batchsize; p++)
         pthread_join(tid[p], NULL);
-    }
 }
 
 void max_pooling_op_backward(max_pooling_op *op)
 {
-    float *in_error = op->d_input;
-    float *out_error = op->d_output;
-    float *input = op->input;
-    int channels = op->channels;
+    int channels  = op->channels;
     int pool_size = op->kernel_size;
-
-    int in_w = op->in_w; int in_h = op->in_h;
-    int out_w = op->out_w; int out_h = op->out_h;
+    int in_w  = op->in_w; 
+    int in_h  = op->in_h;
+    int out_w = op->out_w; 
+    int out_h = op->out_h;
     register int iwih = in_w*in_h;
     register int owoh = out_w*out_h;
 
@@ -100,13 +94,13 @@ void max_pooling_op_backward(max_pooling_op *op)
     float max_value, cur_value;
     int x, y;
     register int in_shift, out_shift;
-    for (int c=0; c<channels; c++)
+    for (int c = 0; c < channels; c++)
     {
-        for (int i=0; i < op->out_w; i++)
+        for (int i = 0; i < op->out_w; i++)
         {
-            for (int j=0; j < op->out_h; j++)
+            for (int j = 0; j < op->out_h; j++)
             {
-                for (int p=0; p< op->batchsize; p++)
+                for (int p = 0; p < op->batchsize; p++)
                 {
                     //
                     // output[p][c][i][j]
@@ -114,12 +108,12 @@ void max_pooling_op_backward(max_pooling_op *op)
                     x = i*pool_size;    
                     y = j*pool_size;
                     max_value = -1111111;
-                    while ( x<MIN((i + 1) * pool_size, in_w) )
+                    while ( x < MIN((i + 1) * pool_size, in_w) )
                     {
-                        while ( y<MIN((j + 1) * pool_size, in_h) )
+                        while ( y < MIN((j + 1) * pool_size, in_h) )
                         {
-                            cur_value = input[p*channels*iwih + c*iwih + y*in_w + x];
-                            if(cur_value>max_value)
+                            cur_value = op->input[p*channels*iwih + c*iwih + y*in_w + x];
+                            if (cur_value > max_value)
                             {
                                 max_value = cur_value;
                                 in_x = x;
@@ -130,12 +124,11 @@ void max_pooling_op_backward(max_pooling_op *op)
                         x++;
                     }
                     
-                    in_shift = c*iwih + in_y*in_w + in_x;
+                    in_shift  = c*iwih + in_y*in_w + in_x;
                     out_shift = c*owoh + j*out_w + i;
-                    in_error[in_shift] += out_error[out_shift] / op->batchsize;
+                    op->d_input[in_shift] += op->d_output[out_shift] / op->batchsize;
                 }
             }
         }
     }
-
 }

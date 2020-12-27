@@ -19,9 +19,9 @@ void dropout(float *x, float prob, int units)
      * Output:
      *      x   [units]
      * */
-    for(int i=0; i<units; i++)
+    for (int i = 0; i < units; i++)
     {
-        if(rand()%100 < prob*100)
+        if (rand()%100 < prob*100)
             x[i] = 0;
     }
 }

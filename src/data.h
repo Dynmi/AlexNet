@@ -15,8 +15,8 @@ typedef struct{
 
 char** get_random_paths(int label);
 
-void make_image(image *img, int w, int h, int c);
-void free_image(image *img);
+inline void make_image(image *img, int w, int h, int c);
+inline void free_image(image *img);
 image load_image(char *filename, int W, int H, int channels);
 image resize_image(image im, int w, int h);
 

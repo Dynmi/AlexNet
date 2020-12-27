@@ -6,10 +6,10 @@
 #include <stdlib.h>
 
 typedef struct fc_op {
-    float *input; float *d_input;
-    float *output; float *d_output;
+    float *input;   float *d_input;
+    float *output;  float *d_output;
     float *weights; float *d_weights;
-    float *bias; float *d_bias;
+    float *bias;    float *d_bias;
     int in_units, out_units;
 
     short batchsize;
