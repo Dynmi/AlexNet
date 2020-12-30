@@ -152,6 +152,30 @@ void fc_op_backward(fc_op *op)
 }
 
 
+void calloc_fc_weights(fc_op *op)
+{
+    op->weights = (float *)calloc(op->in_units * op->out_units, sizeof(float));
+    op->bias    = (float *)calloc(op->out_units, sizeof(float));
+}
+
+void free_fc_weights(fc_op *op)
+{
+    free(op->weights);
+    free(op->bias);
+}
+
+void calloc_fc_dweights(fc_op *op)
+{
+    op->d_weights = (float *)calloc(op->in_units * op->out_units, sizeof(float));
+    op->d_bias    = (float *)calloc(op->out_units, sizeof(float));
+}
+
+void free_fc_dweights(fc_op *op)
+{
+    free(op->d_weights);
+    free(op->d_bias);
+}
+
 void save_fc_weights(fc_op *op, FILE *fp)
 {
     fwrite(op->weights, sizeof(float), op->in_units * op->out_units, fp);

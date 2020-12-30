@@ -178,70 +178,39 @@ static void gradient_descent(alexnet *net)
 }
 
 
-static void free_alexnet_d_params(alexnet *net)
+void calloc_alexnet_d_params(alexnet *net)
 {
-    free(net->conv1.d_weights);
-    free(net->conv2.d_weights);
-    free(net->conv3.d_weights);
-    free(net->conv4.d_weights);
-    free(net->conv5.d_weights);
-    free(net->fc1.d_weights); 
-    free(net->fc2.d_weights);
-    free(net->fc3.d_weights);
-
-    free(net->conv1.d_bias); 
-    free(net->conv2.d_bias);
-    free(net->conv3.d_bias); 
-    free(net->conv4.d_bias); 
-    free(net->conv5.d_bias);
-    free(net->fc1.d_bias); 
-    free(net->fc2.d_bias); 
-    free(net->fc3.d_bias);
-
-    free(net->bn1.d_gamma); 
-    free(net->bn2.d_gamma); 
-    free(net->bn3.d_gamma); 
-    free(net->bn4.d_gamma);
-    free(net->bn5.d_gamma);
-
-    free(net->bn1.d_beta);
-    free(net->bn2.d_beta);
-    free(net->bn3.d_beta);
-    free(net->bn4.d_beta);
-    free(net->bn5.d_beta); 
+    calloc_conv_dweights(&(net->conv1));
+    calloc_conv_dweights(&(net->conv2));
+    calloc_conv_dweights(&(net->conv3));
+    calloc_conv_dweights(&(net->conv4));
+    calloc_conv_dweights(&(net->conv5));
+    calloc_fc_dweights(&(net->fc1));
+    calloc_fc_dweights(&(net->fc2));
+    calloc_fc_dweights(&(net->fc3));
+    calloc_batchnorm_dweights(&(net->bn1));
+    calloc_batchnorm_dweights(&(net->bn2));
+    calloc_batchnorm_dweights(&(net->bn3));
+    calloc_batchnorm_dweights(&(net->bn4));
+    calloc_batchnorm_dweights(&(net->bn5));
 }
 
-static void calloc_alexnet_d_params(alexnet *net)
+void free_alexnet_d_params(alexnet *net)
 {
-    net->conv1.d_weights = (float *)calloc( C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L, sizeof(float));
-    net->conv2.d_weights = (float *)calloc( C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L, sizeof(float));
-    net->conv3.d_weights = (float *)calloc( C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L, sizeof(float));
-    net->conv4.d_weights = (float *)calloc( C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L, sizeof(float));
-    net->conv5.d_weights = (float *)calloc( C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L, sizeof(float));
-    net->fc1.d_weights   = (float *)calloc( C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L, sizeof(float));
-    net->fc2.d_weights   = (float *)calloc( FC6_LAYER*FC7_LAYER, sizeof(float));
-    net->fc3.d_weights   = (float *)calloc( FC7_LAYER*OUT_LAYER, sizeof(float));
+    free_conv_dweights(&(net->conv1));
+    free_conv_dweights(&(net->conv2));
+    free_conv_dweights(&(net->conv3));
+    free_conv_dweights(&(net->conv4));
+    free_conv_dweights(&(net->conv5));
+    free_fc_dweights(&(net->fc1));
+    free_fc_dweights(&(net->fc2));
+    free_fc_dweights(&(net->fc3));
 
-    net->conv1.d_bias = (float *)calloc( C1_CHANNELS, sizeof(float));
-    net->conv2.d_bias = (float *)calloc( C2_CHANNELS, sizeof(float));
-    net->conv3.d_bias = (float *)calloc( C3_CHANNELS, sizeof(float));
-    net->conv4.d_bias = (float *)calloc( C4_CHANNELS, sizeof(float));
-    net->conv5.d_bias = (float *)calloc( C5_CHANNELS, sizeof(float));
-    net->fc1.d_bias   = (float *)calloc( FC6_LAYER, sizeof(float));
-    net->fc2.d_bias   = (float *)calloc( FC7_LAYER, sizeof(float));
-    net->fc3.d_bias   = (float *)calloc( OUT_LAYER, sizeof(float));
-
-    net->bn1.d_gamma = (float *)calloc( C1_CHANNELS*FEATURE1_L*FEATURE1_L, sizeof(float));
-    net->bn2.d_gamma = (float *)calloc( C2_CHANNELS*FEATURE2_L*FEATURE2_L, sizeof(float));
-    net->bn3.d_gamma = (float *)calloc( C3_CHANNELS*FEATURE3_L*FEATURE3_L, sizeof(float));
-    net->bn4.d_gamma = (float *)calloc( C4_CHANNELS*FEATURE4_L*FEATURE4_L, sizeof(float));
-    net->bn5.d_gamma = (float *)calloc( C5_CHANNELS*FEATURE5_L*FEATURE5_L, sizeof(float));
-    net->bn1.d_beta  = (float *)calloc( C1_CHANNELS*FEATURE1_L*FEATURE1_L, sizeof(float));
-    net->bn2.d_beta  = (float *)calloc( C2_CHANNELS*FEATURE2_L*FEATURE2_L, sizeof(float));
-    net->bn3.d_beta  = (float *)calloc( C3_CHANNELS*FEATURE3_L*FEATURE3_L, sizeof(float));
-    net->bn4.d_beta  = (float *)calloc( C4_CHANNELS*FEATURE4_L*FEATURE4_L, sizeof(float));
-    net->bn5.d_beta  = (float *)calloc( C5_CHANNELS*FEATURE5_L*FEATURE5_L, sizeof(float));
-
+    free_batchnorm_dweights(&(net->bn1));
+    free_batchnorm_dweights(&(net->bn2));
+    free_batchnorm_dweights(&(net->bn3));
+    free_batchnorm_dweights(&(net->bn4));
+    free_batchnorm_dweights(&(net->bn5));
 }
 
 void backward_alexnet(alexnet *net, int *batch_Y)

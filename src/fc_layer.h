@@ -19,5 +19,11 @@ typedef struct fc_op {
 void fc_op_forward(fc_op *op);
 void fc_op_backward(fc_op *op);
 
+inline void calloc_fc_weights(fc_op *op);
+inline void free_fc_weights(fc_op *op);
+
+inline void calloc_fc_dweights(fc_op *op);
+inline void free_fc_dweights(fc_op *op);
+
 inline void load_fc_weights(fc_op *op, FILE *fp);
 inline void save_fc_weights(fc_op *op, FILE *fp);

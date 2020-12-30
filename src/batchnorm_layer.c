@@ -99,6 +99,30 @@ void batch_norm_op_backward(batch_norm_op *op)
 }
 
 
+void calloc_batchnorm_weights(batch_norm_op *op)
+{
+    op->gamma = (float *)calloc(op->units, sizeof(float));
+    op->beta  = (float *)calloc(op->units, sizeof(float));
+}
+
+void free_batchnorm_weights(batch_norm_op *op)
+{
+    free(op->gamma);
+    free(op->beta);
+}
+
+void calloc_batchnorm_dweights(batch_norm_op *op)
+{
+    op->d_gamma = (float *)calloc(op->units, sizeof(float));
+    op->d_beta  = (float *)calloc(op->units, sizeof(float));
+}
+
+void free_batchnorm_dweights(batch_norm_op *op)
+{
+    free(op->d_gamma);
+    free(op->d_beta);
+}
+
 void save_batchnorm_weights(batch_norm_op *op, FILE *fp)
 {
     fwrite(op->gamma, sizeof(float), op->units, fp);

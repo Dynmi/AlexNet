@@ -104,15 +104,11 @@ For example:
 
 ## Todo List
 
-- [ ] **Data: Two Forms of Data Augmention**
-
 - [ ] **Data: get_next_batch()**
 
 - [ ]  **Try & Compare on ImageNet**
 
 - [ ]  **CUDA speed boosting**
-
-- [ ]  **Try: circle loss**
 
 - [ ]  **Report for Speed Benchmark**
 

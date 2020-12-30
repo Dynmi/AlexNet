@@ -414,69 +414,39 @@ void forward_alexnet(alexnet *net)
 
 void malloc_alexnet(alexnet *net)
 {
-    net->conv1.weights = (float *)malloc(sizeof(float) * C1_CHANNELS*IN_CHANNELS*C1_KERNEL_L*C1_KERNEL_L);
-    net->conv2.weights = (float *)malloc(sizeof(float) * C2_CHANNELS*C1_CHANNELS*C2_KERNEL_L*C2_KERNEL_L);
-    net->conv3.weights = (float *)malloc(sizeof(float) * C3_CHANNELS*C2_CHANNELS*C3_KERNEL_L*C3_KERNEL_L);
-    net->conv4.weights = (float *)malloc(sizeof(float) * C4_CHANNELS*C3_CHANNELS*C4_KERNEL_L*C4_KERNEL_L);
-    net->conv5.weights = (float *)malloc(sizeof(float) * C5_CHANNELS*C4_CHANNELS*C5_KERNEL_L*C5_KERNEL_L);
-    net->fc1.weights   = (float *)malloc(sizeof(float) * C5_CHANNELS*FC6_LAYER*POOLING5_L*POOLING5_L);
-    net->fc2.weights   = (float *)malloc(sizeof(float) * FC6_LAYER*FC7_LAYER);
-    net->fc3.weights   = (float *)malloc(sizeof(float) * FC7_LAYER*OUT_LAYER);
+    calloc_conv_weights(&(net->conv1));
+    calloc_conv_weights(&(net->conv2));
+    calloc_conv_weights(&(net->conv3));
+    calloc_conv_weights(&(net->conv4));
+    calloc_conv_weights(&(net->conv5));
+    calloc_fc_weights(&(net->fc1));
+    calloc_fc_weights(&(net->fc2));
+    calloc_fc_weights(&(net->fc3));
 
-    net->conv1.bias = (float *)malloc(sizeof(float) * C1_CHANNELS);
-    net->conv2.bias = (float *)malloc(sizeof(float) * C2_CHANNELS);
-    net->conv3.bias = (float *)malloc(sizeof(float) * C3_CHANNELS);
-    net->conv4.bias = (float *)malloc(sizeof(float) * C4_CHANNELS);
-    net->conv5.bias = (float *)malloc(sizeof(float) * C5_CHANNELS);
-    net->fc1.bias   = (float *)malloc(sizeof(float) * FC6_LAYER);
-    net->fc2.bias   = (float *)malloc(sizeof(float) * FC7_LAYER);
-    net->fc3.bias   = (float *)malloc(sizeof(float) * OUT_LAYER);
-
-    net->bn1.gamma = (float *)malloc(sizeof(float) * C1_CHANNELS*FEATURE1_L*FEATURE1_L);
-    net->bn2.gamma = (float *)malloc(sizeof(float) * C2_CHANNELS*FEATURE2_L*FEATURE2_L);
-    net->bn3.gamma = (float *)malloc(sizeof(float) * C3_CHANNELS*FEATURE3_L*FEATURE3_L);
-    net->bn4.gamma = (float *)malloc(sizeof(float) * C4_CHANNELS*FEATURE4_L*FEATURE4_L);
-    net->bn5.gamma = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
-    net->bn1.beta  = (float *)malloc(sizeof(float) * C1_CHANNELS*FEATURE1_L*FEATURE1_L);
-    net->bn2.beta  = (float *)malloc(sizeof(float) * C2_CHANNELS*FEATURE2_L*FEATURE2_L);
-    net->bn3.beta  = (float *)malloc(sizeof(float) * C3_CHANNELS*FEATURE3_L*FEATURE3_L);
-    net->bn4.beta  = (float *)malloc(sizeof(float) * C4_CHANNELS*FEATURE4_L*FEATURE4_L);
-    net->bn5.beta  = (float *)malloc(sizeof(float) * C5_CHANNELS*FEATURE5_L*FEATURE5_L);
+    calloc_batchnorm_weights(&(net->bn1));
+    calloc_batchnorm_weights(&(net->bn2));
+    calloc_batchnorm_weights(&(net->bn3));
+    calloc_batchnorm_weights(&(net->bn4));
+    calloc_batchnorm_weights(&(net->bn5));
 }
 
 void free_alexnet(alexnet *net)
 {
-    free(net->conv1.weights);
-    free(net->conv2.weights);
-    free(net->conv3.weights);
-    free(net->conv4.weights);
-    free(net->conv5.weights);
-    free(net->fc1.weights); 
-    free(net->fc2.weights);
-    free(net->fc3.weights);
+    free_conv_weights(&(net->conv1));
+    free_conv_weights(&(net->conv2));
+    free_conv_weights(&(net->conv3));
+    free_conv_weights(&(net->conv4));
+    free_conv_weights(&(net->conv5));
+    free_fc_weights(&(net->fc1));
+    free_fc_weights(&(net->fc2));
+    free_fc_weights(&(net->fc3));
 
-    free(net->conv1.bias); 
-    free(net->conv2.bias);
-    free(net->conv3.bias); 
-    free(net->conv4.bias); 
-    free(net->conv5.bias);
-    free(net->fc1.bias); 
-    free(net->fc2.bias); 
-    free(net->fc3.bias);
-
-    free(net->bn1.gamma); 
-    free(net->bn2.gamma); 
-    free(net->bn3.gamma); 
-    free(net->bn4.gamma);
-    free(net->bn5.gamma);
-
-    free(net->bn1.beta);
-    free(net->bn2.beta);
-    free(net->bn3.beta);
-    free(net->bn4.beta);
-    free(net->bn5.beta); 
+    free_batchnorm_weights(&(net->bn1));
+    free_batchnorm_weights(&(net->bn2));
+    free_batchnorm_weights(&(net->bn3));
+    free_batchnorm_weights(&(net->bn4));
+    free_batchnorm_weights(&(net->bn5));
 }
-
 
 static inline float U_Random(void)
 {
@@ -523,23 +493,19 @@ void save_alexnet(alexnet *net, char *filename)
      * save weights of net to file
      * */
     FILE *fp = fopen(filename, "wb");
-
     save_conv_weights(&(net->conv1), fp);
     save_conv_weights(&(net->conv2), fp);
     save_conv_weights(&(net->conv3), fp);
     save_conv_weights(&(net->conv4), fp);
     save_conv_weights(&(net->conv5), fp);
-
+    save_fc_weights(&(net->fc1), fp);
+    save_fc_weights(&(net->fc2), fp);
+    save_fc_weights(&(net->fc3), fp);
     save_batchnorm_weights(&(net->bn1), fp);
     save_batchnorm_weights(&(net->bn2), fp);
     save_batchnorm_weights(&(net->bn3), fp);
     save_batchnorm_weights(&(net->bn4), fp);
     save_batchnorm_weights(&(net->bn5), fp);
-
-    save_fc_weights(&(net->fc1), fp);
-    save_fc_weights(&(net->fc2), fp);
-    save_fc_weights(&(net->fc3), fp);
-    
     fclose(fp);
     printf("Save weights to \"%s\" successfully... \n", filename);
 }
@@ -553,29 +519,25 @@ void load_alexnet(alexnet *net, char *filename)
      * load weights of network from file
      * */
     FILE *fp = fopen(filename, "rb");
-
     load_conv_weights(&(net->conv1), fp);
     load_conv_weights(&(net->conv2), fp);
     load_conv_weights(&(net->conv3), fp);
     load_conv_weights(&(net->conv4), fp);
     load_conv_weights(&(net->conv5), fp);
-
+    load_fc_weights(&(net->fc1), fp);
+    load_fc_weights(&(net->fc2), fp);
+    load_fc_weights(&(net->fc3), fp);
     load_batchnorm_weights(&(net->bn1), fp);
     load_batchnorm_weights(&(net->bn2), fp);
     load_batchnorm_weights(&(net->bn3), fp);
     load_batchnorm_weights(&(net->bn4), fp);
     load_batchnorm_weights(&(net->bn5), fp);
-
-    load_fc_weights(&(net->fc1), fp);
-    load_fc_weights(&(net->fc2), fp);
-    load_fc_weights(&(net->fc3), fp);
-    
     fclose(fp);
     printf("Load weights from \"%s\" successfully... \n", filename);
 }
 
 
-void set_alexnet(alexnet *net, short batchsize, char *weights_path)
+void setup_alexnet(alexnet *net, short batchsize)
 {
     /**
      * initialize alexnet
@@ -727,7 +689,10 @@ void set_alexnet(alexnet *net, short batchsize, char *weights_path)
 
     net->fc3.in_units = FC7_LAYER;
     net->fc3.out_units = OUT_LAYER;
+}
 
+void alexnet_init_weights(alexnet *net, char *weights_path)
+{
 
     if(weights_path != NULL) // load a pre-trained model
     {
@@ -822,12 +787,12 @@ int main(int argc, char* argv[])
 
         printf("batch size: %d \n", batchsize);
         printf("epochs: %d \n", epochs);
-
+        setup_alexnet(&net, batchsize);
         malloc_alexnet(&net);    
         if (is_load) {
-            set_alexnet(&net, batchsize, weights_in_path);
+            alexnet_init_weights(&net, weights_in_path);
         }else {
-            set_alexnet(&net, batchsize, NULL);
+            alexnet_init_weights(&net, NULL);
         }
         alexnet_train(&net, epochs);
         if (is_save)
@@ -848,9 +813,9 @@ int main(int argc, char* argv[])
             if (0 == strcmp(argv[i], "-load"))
                 sprintf(weights_path, "%s", argv[i+1]);
         }
+        setup_alexnet(&net, 1);
         malloc_alexnet(&net);    
-        set_alexnet(&net, 1, weights_path);
-        load_alexnet(&net, weights_path);
+        alexnet_init_weights(&net, weights_path);
         printf("alexnet setup fininshed. Waiting for inference...\n");
         alexnet_inference(&net, argv[2]);
         free_alexnet(&net);

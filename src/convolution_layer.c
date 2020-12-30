@@ -111,7 +111,6 @@ static void* pthread_conv_op_forward(void *argv)
 
     float *x_col    = cp.op->input_col + cp.batch_id * cp.op->in_units;
     float *t_input  = cp.op->input + cp.batch_id * cp.op->in_units;
-    float *weights  = cp.op->weights;
     float *t_output = cp.op->output + cp.batch_id * cp.op->out_units;
     int ikk  = cp.op->in_channels * cp.op->kernel_size * cp.op->kernel_size;
     int owoh = cp.op->out_w * cp.op->out_h;
@@ -125,7 +124,7 @@ static void* pthread_conv_op_forward(void *argv)
     // >>>>>>>>>>>>>>>>>>>
     //
     img2col(t_input, x_col, cp.op);
-    matrix_multiply(x_col, weights, t_output, owoh, ikk, cp.op->out_channels); //output[owoh,oc]
+    matrix_multiply(x_col, cp.op->weights, t_output, owoh, ikk, cp.op->out_channels); //output[owoh,oc]
     matrix_transpose(t_output, owoh, cp.op->out_channels); //output[oc,owoh]
 
     register int o_offset=0;
@@ -265,11 +264,34 @@ void conv_op_backward(conv_op *op)
 
 }
 
+void calloc_conv_weights(conv_op *op)
+{
+    op->weights = (float *)calloc(op->out_channels * op->in_channels * op->kernel_size * op->kernel_size, sizeof(float));
+    op->bias    = (float *)calloc(op->out_channels, sizeof(float));
+}
+
+void free_conv_weights(conv_op *op)
+{
+    free(op->weights);
+    free(op->bias);
+}
+
+void calloc_conv_dweights(conv_op *op)
+{
+    op->d_weights = (float *)calloc(op->out_channels * op->in_channels * op->kernel_size * op->kernel_size, sizeof(float));
+    op->d_bias    = (float *)calloc(op->out_channels, sizeof(float));
+}
+
+void free_conv_dweights(conv_op *op)
+{
+    free(op->d_weights);
+    free(op->d_bias);
+}
 
 void save_conv_weights(conv_op *op, FILE *fp)
 {
     fwrite(op->weights, sizeof(float), op->out_channels * op->in_channels * op->kernel_size * op->kernel_size, fp);
-    fwrite(op->bias,    sizeof(float), op->out_units, fp);
+    fwrite(op->bias,    sizeof(float), op->out_channels, fp);
 }
 
 

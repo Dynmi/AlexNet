@@ -25,5 +25,11 @@ typedef struct batch_norm_op {
 void batch_norm_op_forward(batch_norm_op *op);
 void batch_norm_op_backward(batch_norm_op *op);
 
+inline void calloc_batchnorm_weights(batch_norm_op *op);
+inline void free_batchnorm_weights(batch_norm_op *op);
+
+inline void calloc_batchnorm_dweights(batch_norm_op *op);
+inline void free_batchnorm_dweights(batch_norm_op *op);
+
 inline void load_batchnorm_weights(batch_norm_op *op, FILE *fp);
 inline void save_batchnorm_weights(batch_norm_op *op, FILE *fp);
