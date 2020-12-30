@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <unistd.h>
 
+
 void make_image(image *img, int w, int h, int c)
 {
     /**
@@ -32,21 +33,15 @@ void make_image(image *img, int w, int h, int c)
 
 void free_image(image *img)
 {
-    /**
-     * free image
-     * 
-     * Input:
-     *      img
-     * */
     if (img->data)
         free(img->data);
 }
 
 
-static float get_pixel(image img, unsigned int x, unsigned int y, unsigned int c)
+static float get_pixel(image *img, unsigned int x, unsigned int y, unsigned int c)
 {
-    assert(x<img.w && y<img.h && c<img.c);
-    return img.data[c*img.w*img.h+y*img.w+x];
+    assert(x<(img->w) && y<(img->h) && c<(img->c));
+    return img->data[c*img->w*img->h+y*img->w+x];
 }
 
 static void set_pixel(image *img, float value, unsigned int x, unsigned int y, unsigned int c)
@@ -62,22 +57,40 @@ static void add_pixel(image *img, float value, unsigned int x, unsigned int y, u
     img->data[c*(img->w)*(img->h)+y*(img->w)+x] += value;
 }
 
+void horizontal_flip(image *im)
+{
+    /**
+     * Data argumention : horizontal flip
+     * */
+    float *tmp = (float *)malloc(im->w * im->h * im->c * sizeof(float));
+    for (short z = 0; z < im->c; z++)
+    {
+        for (short y = 0; y < im->h; y++)
+        {
+            register int st_idx = y * im->w + z * im->w * im->h;
+            for (short x = 0; x < im->w; x++)
+                tmp[st_idx+x] = im->data[st_idx+im->w-x];
+        }
+    }
+    memcpy(im->data, tmp, im->w * im->h * im->c * sizeof(float));
+    free(tmp);
+}
 
-image resize_image(image im, int w, int h)
+void resize_image(image *im, int w, int h)
 {
     image resized, part;
-    make_image(&resized, w, h, im.c);
-    make_image(&part,  w, im.h, im.c);
-    float   w_scale = (im.w-1) * 1.0 / (w-1),
-            h_scale = (im.h-1) * 1.0 / (h-1);
+    make_image(&resized, w, h, im->c);
+    make_image(&part,  w, im->h, im->c);
+    float   w_scale = (im->w-1) * 1.0 / (w-1),
+            h_scale = (im->h-1) * 1.0 / (h-1);
     register float val;
     register unsigned int r, c, k;
-    for (k = 0; k < im.c; ++k){
-        for (r = 0; r < im.h; ++r){
+    for (k = 0; k < im->c; ++k){
+        for (r = 0; r < im->h; ++r){
             for (c = 0; c < w; ++c){
                 val = 0;
-                if (c == w-1 || im.w == 1) {
-                    val = get_pixel(im, im.w-1, r, k);
+                if (c == w-1 || im->w == 1) {
+                    val = get_pixel(im, im->w-1, r, k);
                 }else {
                     float sx = c * w_scale;
                     int   ix = (int)sx;
@@ -88,28 +101,29 @@ image resize_image(image im, int w, int h)
             }
         }
     }
-    for (k = 0; k < im.c; ++k){
+    for (k = 0; k < im->c; ++k){
         for (r = 0; r < h; ++r){
             float sy = r * h_scale;
             int   iy = (int) sy;
             float dy = sy - iy;
             for (c = 0; c < w; ++c){
-                val = (1-dy) * get_pixel(part, c, iy, k);
+                val = (1-dy) * get_pixel(&part, c, iy, k);
                 set_pixel(&resized, val, c, r, k);
             }
-            if (r == h-1 || im.h == 1) continue;
+            if (r == h-1 || im->h == 1) continue;
             for (c = 0; c < w; ++c){
-                val = dy * get_pixel(part, c, iy+1, k);
+                val = dy * get_pixel(&part, c, iy+1, k);
                 add_pixel(&resized, val, c, r, k);
             }
         }
     }
 
+    memcpy(im, &resized, sizeof(image));
     free_image(&part);
-    return resized;
+    free_image(&resized);
 }
 
-image load_image(char *filename, int W, int H, int channels)
+image load_image(char *filename, int W, int H, int channels, int is_h_flip)
 {
     /**
      * load image from file
@@ -117,6 +131,7 @@ image load_image(char *filename, int W, int H, int channels)
      * Input:
      *      filename
      *      channels
+     *      is_h_filp   whether to apply horizontal flip
      * Return:
      *      image
      * */
@@ -149,11 +164,11 @@ image load_image(char *filename, int W, int H, int channels)
     free(data);
 
     if ((h&&w) && (H!=img.h || W!=img.w))
-    {
-        image resized = resize_image(img, H, W);
-        free_image(&img);
-        return resized;
-    }
+        resize_image(&img, H, W);
+    
+    if (is_h_flip)
+        horizontal_flip(&img);
+
     return img;
 }
 
@@ -182,7 +197,7 @@ void get_random_batch(int n, float *X, int *Y,
         register int label = rand()%CLASSES;
         sprintf(imgpath, "./images/%d/%d.jpeg", label, rand()%1000);
         //printf("image:%s class:%d\n", imgpath, label);
-        img = load_image(imgpath, w, h, c);
+        img = load_image(imgpath, w, h, c, 1);
         memcpy(X+i*w*h*c, img.data, w*h*c*sizeof(float));
         Y[i] = label;
     }

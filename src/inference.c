@@ -15,7 +15,7 @@ void alexnet_inference(alexnet *net, char *filename)
 {
     image img;
     make_image(&img, FEATURE0_L, FEATURE0_L, IN_CHANNELS);
-    img = load_image(filename, FEATURE0_L, FEATURE0_L, IN_CHANNELS);
+    img = load_image(filename, FEATURE0_L, FEATURE0_L, IN_CHANNELS, 0);
     net->input = img.data;    
     forward_alexnet(net);
     int pred = argmax(net->output, OUT_LAYER);

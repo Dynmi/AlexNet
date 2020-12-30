@@ -13,12 +13,10 @@ typedef struct{
 } image;
 
 
-char** get_random_paths(int label);
-
 inline void make_image(image *img, int w, int h, int c);
 inline void free_image(image *img);
-image load_image(char *filename, int W, int H, int channels);
-image resize_image(image im, int w, int h);
+image load_image(char *filename, int W, int H, int channels, int is_h_flip);
+void resize_image(image *im, int w, int h);
 
 void get_random_batch(int n, float *X, int *Y, 
                         int w, int h, int c, int CLASSES);
