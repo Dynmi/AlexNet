@@ -587,12 +587,13 @@ void backward_alexnet(alexnet *net, int *batch_Y)
 
 void alexnet_train(alexnet *net, int epochs)
 {
-    net->input   = (float *)malloc(net->batchsize * sizeof(float) * IN_CHANNELS*FEATURE0_L*FEATURE0_L);
-    int *batch_Y = (int   *)malloc(net->batchsize * sizeof(int));
-    int preds[OUT_LAYER];
-    float metric;
 
-    printf("\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>training>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+    net->input   = (float *)malloc(net->batchsize * net->conv1.in_channels * net->conv1.in_w * net->conv1.in_h * sizeof(float));
+    int *batch_Y = (int   *)malloc(net->batchsize * sizeof(int));
+    int preds[net->fc3.out_units];
+    FILE *fp = fopen("./images.list", "r");
+
+    printf("\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>> training begin >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
     struct timespec start, finish; float duration;
     for (int e = 0;e < epochs; e++)
     {
@@ -602,7 +603,8 @@ void alexnet_train(alexnet *net, int epochs)
         // batch_X <-- images
         // batch_Y <-- labels 
         //
-        get_random_batch(net->batchsize, net->input, batch_Y, FEATURE0_L, FEATURE0_L, IN_CHANNELS, OUT_LAYER);
+        get_next_batch(net->batchsize, net->input, batch_Y, 
+                        net->conv1.in_w, net->conv1.in_h, net->conv1.in_channels, net->fc3.out_units, fp);
         
         clock_gettime(CLOCK_MONOTONIC, &start);
         forward_alexnet(net);
@@ -612,7 +614,7 @@ void alexnet_train(alexnet *net, int epochs)
         printf("forward_alexnet duration: %.4fs \n", duration);
 
         for (int i = 0; i < net->batchsize; i++)
-            preds[i] = argmax(net->output+i*OUT_LAYER, OUT_LAYER);
+            preds[i] = argmax(net->output + i * net->fc3.out_units, net->fc3.out_units);
 
 #ifdef SHOW_PREDCITION_DETAIL
         printf("pred[ ");
@@ -623,7 +625,8 @@ void alexnet_train(alexnet *net, int epochs)
             printf("%d ", batch_Y[i]);
         printf("]\n");
 #endif
-        //metrics(&metric, preds, batch_Y, OUT_LAYER, net->batchsize, METRIC_ACCURACY);
+        // float metric;
+        // metrics(&metric, preds, batch_Y, OUT_LAYER, net->batchsize, METRIC_ACCURACY);
         clock_gettime(CLOCK_MONOTONIC, &start);
         backward_alexnet(net, batch_Y);
         clock_gettime(CLOCK_MONOTONIC, &finish);
@@ -632,8 +635,9 @@ void alexnet_train(alexnet *net, int epochs)
         printf("backward_alexnet duration: %.4fs \n", duration);
         printf("-----------------------------%d---------------------------------\n", e+1);
     }
-    printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>training>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
+    printf(">>>>>>>>>>>>>>>>>>>>>>>>>>> training end >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\n");
 
+    fclose(fp);
     free(net->input);
     free(batch_Y);
 }

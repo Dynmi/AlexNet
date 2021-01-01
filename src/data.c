@@ -176,6 +176,9 @@ image load_image(char *filename, int W, int H, int channels, int is_h_flip)
 void get_random_batch(int n, float *X, int *Y, 
                         int w, int h, int c, int CLASSES)
 {
+    //
+    // not recommended
+    //
     /**
      * sample random batch of data
      * 
@@ -197,14 +200,42 @@ void get_random_batch(int n, float *X, int *Y,
         register int label = rand()%CLASSES;
         sprintf(imgpath, "./images/%d/%d.jpeg", label, rand()%1000);
         //printf("image:%s class:%d\n", imgpath, label);
-        img = load_image(imgpath, w, h, c, 1);
+        img = load_image(imgpath, w, h, c, 0);
         memcpy(X+i*w*h*c, img.data, w*h*c*sizeof(float));
         Y[i] = label;
     }
+    free_image(&img);
 }
 
-void get_next_batch(int n, float *X, float *y, 
-                        int offset, int IMG_SIZE, int LABEL_SIZE)
+void get_next_batch(int n, float *X, int *Y, 
+                        int w, int h, int c, int CLASSES, FILE *fp)
 {
+    /**
+     * sample next batch of data for training model
+     * 
+     * Input:
+     *      n
+     *      w, h, c
+     *      CLASSES
+     *      fp
+     * Output:
+     *      X   [n,c,h,w]
+     *      Y   [n]
+     * */
+    image img; 
+    make_image(&img, w, h, c);
+    int label,idx;
+    char imgpath[256];
+    int imagesize = w*h*c;
+    for(int i=0; i<n; i++)
+    {
+        if(feof(fp)) 
+            rewind(fp);
+        fscanf(fp, "%d %s", &label, imgpath);
+
+        Y[i] = label;
+        img = load_image(imgpath, w, h, c, 0);
+        memcpy(X+i*imagesize, img.data, imagesize*sizeof(float));
+    }
 
 }

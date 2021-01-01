@@ -20,5 +20,5 @@ void resize_image(image *im, int w, int h);
 
 void get_random_batch(int n, float *X, int *Y, 
                         int w, int h, int c, int CLASSES);
-void get_next_batch(int n, float *X, float *y, 
-                        int offset, int IMG_SIZE, int LABEL_SIZE);
+void get_next_batch(int n, float *X, int *Y, 
+                        int w, int h, int c, int CLASSES, FILE *fp);

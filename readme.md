@@ -59,30 +59,23 @@ cd AlexNet
 make clean && make all
 ```
 
-### Train
-1. Put the training images in the directory ```./images/``` as followed:
-( only ```.jpeg``` and ```.png$``` image supported now)
-```
-├── images
-│   ├── 0
-│   │   ├── 1.jpeg
-│   │   ├── 2.jpeg
-│   │   ├── 3.jpeg
-│   │   ├── ...
-│   │   └── x.jpeg
-│   ├── 1
-│   │   ├── ...
-│   ├── 2
-│   │   ├── ...
-│   ├── 3
-│   │   ├── ...
-|   ...
-│   └── 999
-└──────
+### Train 
+( The data loader only supports ```.jpeg``` and ```.png$``` images now. )
 
+1. Create file ```images.list``` in the directory ```./```, each line contains info of one image, 
+like this: ```class_id image_path``` .
+
+For example:
+```
+0 /home/haris/Documents/AlexNet/images/0/1.jpeg
+1 /home/haris/Documents/AlexNet/images/1/1.jpeg
+2 /home/haris/Documents/AlexNet/images/2/1.jpeg
+3 /home/haris/Documents/AlexNet/images/3/1.jpeg
+4 /home/haris/Documents/AlexNet/images/4/1.jpeg
+5 /home/haris/Documents/AlexNet/images/5/1.jpeg
 ```
 
-2. 
+2. Run the command for training
 ```
 ./alexnet train -batchsize <batch-size> -epochs <epochs> -load_pretrained <weights-path> -save <weights-path>
 ```
@@ -103,8 +96,6 @@ For example:
 ```
 
 ## Todo List
-
-- [ ] **Data: get_next_batch()**
 
 - [ ]  **Try & Compare on ImageNet**
 
