@@ -61,20 +61,18 @@ void matrix_multiply(const float *a, const float *b, float *c, const int M, cons
      * c    [M,K]
      * */
     register int i,j,p;
-    register int a_offset=0;
+    register float *a_ptr = a;
     for (i = 0; i < M; i++)
     {
-        for (j = 0; j < N; j++, a_offset++)
+        register float *b_ptr = b;
+        for (j = 0; j < N; j++)
         {
-            register float apart = a[a_offset];
+            register float apart = *(a_ptr++);
             if (apart<0.00001 && apart>(0-0.00001))
                 continue;
-            register int c_offset = i*K;
-            register int b_offset = j*K;
+            register float *c_ptr = c + i*K;
             for (p = 0; p < K; p++)
-            {
-                c[c_offset++] += apart * b[b_offset++];
-            }
+                *(c_ptr++) += *(b_ptr++) * apart;
         }
     }
 }
