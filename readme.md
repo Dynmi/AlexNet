@@ -60,7 +60,7 @@ make clean && make all
 ```
 
 ### Train 
-( The data loader only supports ```.jpeg``` and ```.png$``` images now. )
+( The data loader only supports ```.jpeg``` and ```.png$``` images now. For image dataset, go to [http://www.image-net.org/](http://www.image-net.org/))
 
 1. Create file ```images.list``` in the directory ```./```, each line contains info of one image, 
 like this: ```class_id image_path``` .

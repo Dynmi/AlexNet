@@ -16,7 +16,7 @@
 
 #define SHOW_PREDCITION_DETAIL
 //#define SHOW_METRIC_EVALUTE
-#define SHOW_OP_TIME
+//#define SHOW_OP_TIME
 
 
 //
@@ -59,7 +59,7 @@
 
 #define FC6_LAYER   4096
 #define FC7_LAYER   4096
-#define OUT_LAYER   100
+#define OUT_LAYER   1000
 #define DROPOUT_PROB  0.4
 
 

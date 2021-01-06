@@ -167,14 +167,6 @@ void forward_alexnet(alexnet *net)
     printf(" forward (&(net->bn1)) duration: %.4fs \n", duration);
 #endif
 
-/*     for(int p=0; p< net->bn1.units * net->batchsize; p++)
-    {
-        if(net->bn1.output[p]<(0-10) | net->bn1.output[p]>10 )
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm1 error !!!  %f\n", net->bn1.output[p]);
-        }
-    } */
-
     net->relu1.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu1.units);
     net->relu1.input = net->bn1.output;
     relu_op_forward(&(net->relu1));
@@ -209,14 +201,6 @@ void forward_alexnet(alexnet *net)
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     printf(" forward (&(net->bn2)) duration: %.4fs \n", duration);
 #endif
-
-/*     for(int p=0; p< net->bn2.units * net->batchsize; p++)
-    {
-        if(net->bn2.output[p]<(0-10) | net->bn2.output[p]>10 )
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm2 error !!! %f\n", net->bn2.output[p]);
-        }
-    } */
 
     net->relu2.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu2.units);
     net->relu2.input = net->bn2.output;
@@ -253,14 +237,6 @@ void forward_alexnet(alexnet *net)
     printf(" forward (&(net->bn3)); duration: %.4fs \n", duration);
 #endif
 
-/*     for(int p=0; p< net->bn3.units * net->batchsize; p++)
-    {
-        if(net->bn3.output[p]<(0-10) | net->bn3.output[p]>10 )
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm3 error !!! %f \n", net->bn3.output[p]);
-        }
-    }
- */
     net->relu3.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu3.units);
     net->relu3.input = net->bn3.output;
     relu_op_forward(&(net->relu3));
@@ -292,14 +268,6 @@ void forward_alexnet(alexnet *net)
     printf(" forward (&(net->bn4)) duration: %.4fs \n", duration);
 #endif
 
-/*     for(int p=0; p< net->bn4.units * net->batchsize; p++)
-    {
-        if(net->bn4.output[p]<(0-10) | net->bn4.output[p]>10 )
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm4 error !!! %f\n", net->bn4.output[p]);
-        }
-    } */
-
     net->relu4.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu4.units);
     net->relu4.input = net->bn4.output;
     relu_op_forward(&(net->relu4));
@@ -330,14 +298,6 @@ void forward_alexnet(alexnet *net)
     duration += (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     printf(" forward (&(net->bn5)) duration: %.4fs \n", duration);
 #endif
-
-/*     for(int p=0; p< net->bn5.units * net->batchsize; p++)
-    {
-        if(net->bn5.output[p]<(0-10) | net->bn5.output[p]>10 )
-        {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: BatchNorm5 error !!! %f\n", net->bn5.output[p]);
-        }
-    } */
 
     net->relu5.output = (float *)malloc(net->batchsize * sizeof(float) * net->relu5.units);
     net->relu5.input = net->bn5.output;
@@ -386,7 +346,7 @@ void forward_alexnet(alexnet *net)
     {
         if(net->fc2.output[p]<(0-64) | net->fc2.output[p]>64)
         {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: fc2 error !!! %f \n", net->fc2.output[p]);
+            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!Forward: fc2 too big/small !!! %f \n", net->fc2.output[p]);
             break;
         }
     }

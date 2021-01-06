@@ -25,6 +25,14 @@ void matrix_multiply(const float *a, const float *b, float *c, const int M, cons
             register int c_offset = i*K;
             register int b_offset = j*K;
             __m128 zero={};
+            while(c_offset%4!=0)
+            {
+                c_offset--;
+            } 
+            while(b_offset%4!=0)
+            {
+                b_offset--;
+            } 
             while(c_offset<(i+1)*K-4)
             {
                 __m128  ma=zero+apart;  
@@ -87,11 +95,12 @@ matrix_transpose(float *x, int m, int n)
      *      x[n,m]
      * */
     float *tmp = (float *)malloc(m*n*sizeof(float));
-    int i, j;
+    register int i, j;
+    register float *ptr = x;
     for (i = 0; i < m; i++)
     {
-        for (int j = 0; j < n; j++)
-            tmp[j*m+i] = x[i*n+j];
+        for (j = 0; j < n; j++)
+            tmp[j*m+i] = *(ptr++);
     }
     memcpy(x, tmp, m*n*sizeof(float));
     free(tmp);
