@@ -101,12 +101,29 @@ For example:
 
 - [ ]  **CUDA speed boosting**
 
-- [ ]  **Report for Speed Benchmark**
+## Speed Benchmark for Ops
 
+Experiments were done on a laptop --- Huawei MagicBook14
 
-## Difference from Torch/Tensorflow/Caffe/Darknet
+### Conv2D Forward 
+|     | this  | DarkNet |
+|  ----  | ----  | ---- |
+| Scene1  | 0.13s | 0.44s |
+| Scene2  | 0.21s | 0.66s |
 
-- ? Maybe... will be faster than all of them on CPU ? later I will put a benchmark here.
+Scene1: Input shape [4,224,224,3], weight shape [64,3,11,11]
+
+Scene2: Input shape [4,57,57,128], weight shape [256,128,3,3]
+
+### Full-connected Forward
+|     | this  | DarkNet |
+|  ----  | ----  | ---- |
+| Scene1  | 0.07s | 0.24s |
+| Scene2  | 0.11s | 0.52s |
+
+Scene1: Input shape [4,2048], weight shape [2048,1024]
+
+Scene2: Input shape [4,4096], weight shape [4096,4096]
 
 ## Original AlexNet Details
 
