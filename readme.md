@@ -138,3 +138,11 @@ Scene2: Input shape [4,4096], weight shape [4096,4096]
 - [Darknet](https://github.com/AlexeyAB/darknet)
 
 - [PyTorch](https://github.com/pytorch/pytorch)
+
+- https://zhuanlan.zhihu.com/p/131647655
+
+- https://zhuanlan.zhihu.com/p/131647655
+
+- https://github.com/tensorflow/tensorflow/blob/v2.4.0/tensorflow/python/ops/nn_ops.py#L3805-L3865
+
+- https://github.com/pytorch/vision/blob/master/torchvision/models/alexnet.py
