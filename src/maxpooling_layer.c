@@ -3,6 +3,7 @@
 // Description: Implementation of max pooling layer
 // Author:      Haris Wang
 //
+#include <string.h>
 #include <stdlib.h>
 #include <math.h>
 #include <pthread.h>

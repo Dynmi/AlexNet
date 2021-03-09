@@ -13,8 +13,8 @@ typedef struct{
 } image;
 
 
-inline void make_image(image *img, int w, int h, int c);
-inline void free_image(image *img);
+void make_image(image *img, int w, int h, int c);
+void free_image(image *img);
 image load_image(char *filename, int W, int H, int channels, int is_h_flip);
 void resize_image(image *im, int w, int h);
 

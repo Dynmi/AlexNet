@@ -8,6 +8,11 @@ This project is an unofficial implementation of AlexNet, using C Program Languag
 
 **Only support CPU now**
 
+## Platform support
+
++ Linux
++ Windows with MinGW-w64(build pass but can not load images yet)
+
 ## Features
 
 - **Effective matrix multiply**, w.r.t L1/L2 cache
@@ -56,7 +61,8 @@ Non-trainable params: 0
 ```
 git clone git@github.com:Dynmi/AlexNet.git
 cd AlexNet
-make clean && make all
+mkdir build && cd build
+cmake .. & make -j8
 ```
 
 ### Train 
@@ -74,6 +80,8 @@ For example:
 4 /home/haris/Documents/AlexNet/images/4/1.jpeg
 5 /home/haris/Documents/AlexNet/images/5/1.jpeg
 ```
+
+or you can generate `images.list` by using `cs gen_list.csc <PATH of your Images>`
 
 2. Run the command for training
 ```

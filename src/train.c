@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <string.h>
 #include <time.h>
+#include <pthread.h>
 #include "alexnet.h"
 #include "data.h"
 #define MAX(a,b) (((a) > (b)) ? (a) : (b))
@@ -88,7 +89,7 @@ static float v_bn4_beta[C4_CHANNELS*FEATURE4_L*FEATURE4_L];
 static float v_bn5_beta[C5_CHANNELS*FEATURE5_L*FEATURE5_L];
 
 
-static inline void CLIP(float *x, float down, float up)
+static void CLIP(float *x, float down, float up)
 {
     *x = MIN(up, MAX(down, *x));
 }
@@ -167,10 +168,10 @@ static void gradient_descent_d(void *argv)
 static void gradient_descent(alexnet *net)
 {
     pthread_t tid[4];
-    pthread_create(&tid[0], NULL, gradient_descent_a, (void *)(net));
-    pthread_create(&tid[1], NULL, gradient_descent_b, (void *)(net));
-    pthread_create(&tid[2], NULL, gradient_descent_c, (void *)(net));
-    pthread_create(&tid[3], NULL, gradient_descent_d, (void *)(net));
+    pthread_create(&tid[0], NULL, (void*)gradient_descent_a, (void *)(net));
+    pthread_create(&tid[1], NULL, (void*)gradient_descent_b, (void *)(net));
+    pthread_create(&tid[2], NULL, (void*)gradient_descent_c, (void *)(net));
+    pthread_create(&tid[3], NULL, (void*)gradient_descent_d, (void *)(net));
     pthread_join(tid[0], NULL);
     pthread_join(tid[1], NULL);
     pthread_join(tid[2], NULL);

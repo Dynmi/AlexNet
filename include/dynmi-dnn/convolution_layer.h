@@ -24,11 +24,11 @@ typedef struct conv_op {
 void conv_op_forward(conv_op *op);
 void conv_op_backward(conv_op *op);
 
-inline void calloc_conv_weights(conv_op *op);
-inline void free_conv_weights(conv_op *op);
+void calloc_conv_weights(conv_op *op);
+void free_conv_weights(conv_op *op);
 
-inline void calloc_conv_dweights(conv_op *op);
-inline void free_conv_dweights(conv_op *op);
+void calloc_conv_dweights(conv_op *op);
+void free_conv_dweights(conv_op *op);
 
-inline void load_conv_weights(conv_op *op, FILE *fp);
-inline void save_conv_weights(conv_op *op, FILE *fp);
+void load_conv_weights(conv_op *op, FILE *fp);
+void save_conv_weights(conv_op *op, FILE *fp);

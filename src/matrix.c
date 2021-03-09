@@ -57,7 +57,7 @@ void matrix_multiply(const float *a, const float *b, float *c, const int M, cons
 //
 // Todo: Explore more efficient matrix_multiply algorithm
 //
-void matrix_multiply(const float *a, const float *b, float *c, const int M, const int N, const int K)
+void matrix_multiply(float *a, float *b, float *c, const int M, const int N, const int K)
 {
     /**
      * matrix multiply, c = a * b
@@ -85,7 +85,7 @@ void matrix_multiply(const float *a, const float *b, float *c, const int M, cons
     }
 }
 
-matrix_transpose(float *x, int m, int n)
+void matrix_transpose(float *x, int m, int n)
 {
     /** matrix transpose
      * 

@@ -21,7 +21,7 @@ typedef struct conv_args{
     short ed_tunits;
 } conv_args;
 
-static void img2col(const float *img, float *col, const conv_op *op)
+static void img2col(float *img, float *col, const conv_op *op)
 {
     /**
      * Output

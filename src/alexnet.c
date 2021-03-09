@@ -408,7 +408,7 @@ void free_alexnet(alexnet *net)
     free_batchnorm_weights(&(net->bn5));
 }
 
-static inline float U_Random(void)
+static float U_Random(void)
 {
     srand( (unsigned)time( NULL ) );
     return (float)(rand() % 100) / 100;
