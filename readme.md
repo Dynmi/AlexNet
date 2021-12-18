@@ -54,7 +54,7 @@ Non-trainable params: 0
 
 ### Install
 ```
-git clone git@github.com:Dynmi/AlexNet.git
+git clone https://github.com/Dynmi/AlexNet.git
 cd AlexNet
 make clean && make all
 ```
