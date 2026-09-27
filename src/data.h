@@ -18,7 +18,12 @@ inline void free_image(image *img);
 image load_image(char *filename, int W, int H, int channels, int is_h_flip);
 void resize_image(image *im, int w, int h);
 
-void get_random_batch(int n, float *X, int *Y, 
+void get_random_batch(int n, float *X, int *Y,
                         int w, int h, int c, int CLASSES);
-void get_next_batch(int n, float *X, int *Y, 
+void get_next_batch(int n, float *X, int *Y,
                         int w, int h, int c, int CLASSES, FILE *fp);
+
+// Training-time data augmentation: random horizontal flip, applied only by
+// get_next_batch when enabled. Off by default; callers must turn it off
+// again before reading a validation/test list so eval is never augmented.
+void dataset_set_augment(int on);

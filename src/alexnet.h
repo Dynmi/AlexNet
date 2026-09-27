@@ -22,45 +22,75 @@
 //
 //  Definition of model shape
 //
+
+//so that amount of kernels catching characteristics of the image
 #define IN_CHANNELS 3
 #define C1_CHANNELS 64
-#define C2_CHANNELS 192
-#define C3_CHANNELS 384
+#define C2_CHANNELS 128
+#define C3_CHANNELS 256
 #define C4_CHANNELS 256
-#define C5_CHANNELS 256
+#define C5_CHANNELS 128
 
-#define C1_KERNEL_L 11
-#define C2_KERNEL_L 5
+// #define IN_CHANNELS 3
+// #define C1_CHANNELS 64
+// #define C2_CHANNELS 192
+// #define C3_CHANNELS 384
+// #define C4_CHANNELS 256
+// #define C5_CHANNELS 256
+
+
+#define C1_KERNEL_L 3    // instead of 11
+#define C2_KERNEL_L 3    // instead of 5
 #define C3_KERNEL_L 3
 #define C4_KERNEL_L 3
-#define C5_KERNEL_L 3
+#define C5_KERNEL_L 3   // pointless to be just 1...
 
-#define C1_STRIDES 4
+#define C1_STRIDES 1
 #define C2_STRIDES 1
 #define C3_STRIDES 1
 #define C4_STRIDES 1
 #define C5_STRIDES 1
 
-#define C1_PADDING 2
-#define C2_PADDING 2
+#define C1_PADDING 1
+#define C2_PADDING 1
 #define C3_PADDING 1
 #define C4_PADDING 1
 #define C5_PADDING 1
 
-#define FEATURE0_L 224
-#define FEATURE1_L 55
-#define POOLING1_L 27
-#define FEATURE2_L 27
-#define POOLING2_L 13
-#define FEATURE3_L 13
-#define FEATURE4_L 13
-#define FEATURE5_L 13
-#define POOLING5_L 6
 
-#define FC6_LAYER   4096
-#define FC7_LAYER   4096
-#define OUT_LAYER   1000
-#define DROPOUT_PROB  0.4
+#define FEATURE0_L 32
+#define FEATURE1_L 32
+#define POOLING1_L 16
+#define FEATURE2_L 16
+#define POOLING2_L 8
+#define FEATURE3_L 8
+#define FEATURE4_L 8
+#define FEATURE5_L 8
+#define POOLING5_L 4
+
+// #define FEATURE0_L 224
+// #define FEATURE1_L 55
+// #define POOLING1_L 27
+// #define FEATURE2_L 27
+// #define POOLING2_L 13
+// #define FEATURE3_L 13
+// #define FEATURE4_L 13
+// #define FEATURE5_L 13
+// #define POOLING5_L 6
+
+// #define FC6_LAYER   4096
+// #define FC7_LAYER   4096
+
+#define FC6_LAYER   512
+#define FC7_LAYER   512
+// #define OUT_LAYER   1000 FOR IMAGENET
+#ifndef OUT_LAYER
+#define OUT_LAYER   10 // FOR TINY IMAGENET / CIFAR-10; override e.g. -DOUT_LAYER=100 for CIFAR-100
+#endif
+
+#ifndef DROPOUT_PROB
+#define DROPOUT_PROB  0.15
+#endif
 
 
 typedef struct network {
@@ -68,6 +98,9 @@ typedef struct network {
     float *input;
     float *output;
     short batchsize;
+    short is_training;   // gates dropout: nonzero during alexnet_train, 0 during alexnet_test/alexnet_inference
+    float *do1_mask;     // dropout mask after mp5 (consumed by fc1); set by forward, consumed+freed by backward
+    float *do2_mask;     // dropout mask after relu6 (consumed by fc2); set by forward, consumed+freed by backward
     
     conv_op conv1;
     batch_norm_op bn1;
@@ -125,7 +158,10 @@ void free_alexnet(alexnet *net);
 void set_alexnet(alexnet *net, short batchsize, char *weights_path);
 
 void forward_alexnet(alexnet *net);
+void free_forward_activations(alexnet *net);
 void backward_alexnet(alexnet *net, int *batch_Y);
 
 void alexnet_train(alexnet *net, int epochs);
+void alexnet_test(alexnet *net);
 void alexnet_inference(alexnet *net, char *filename);
+void compute_batch_metrics(const int *preds, const int *labels, int batchsize);

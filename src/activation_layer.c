@@ -51,14 +51,15 @@ void relu_op_forward(nonlinear_op *op)
 
 void relu_op_backward(nonlinear_op *op)
 {
-    register float *input = op->input;
-    for (register int i = 0; i < op->units; i++)
+    // per-sample: d_input[p,i] = d_output[p,i] * (input[p,i] > 0)
+    for (int p = 0; p < op->batchsize; p++)
     {
-        register float tmp=0;
-        for (int p = 0; p < op->batchsize; p++)
-            tmp += (*(input++) > 0);
-
-        op->d_input[i] = op->d_output[i] * (tmp / op->batchsize);
+        int base = p * op->units;
+        for (register int i = 0; i < op->units; i++)
+        {
+            int idx = base + i;
+            op->d_input[idx] = op->d_output[idx] * (op->input[idx] > 0 ? 1.0f : 0.0f);
+        }
     }
 }
 

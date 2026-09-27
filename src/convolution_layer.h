@@ -20,7 +20,15 @@ typedef struct conv_op {
     short batchsize;
 } conv_op;
 
-             
+// typedef struct conv_args{
+//     conv_op *op;
+//     short batch_id;
+//     short st_tunits;
+//     short ed_tunits;
+// } conv_args;
+
+
+
 void conv_op_forward(conv_op *op);
 void conv_op_backward(conv_op *op);
 

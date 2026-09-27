@@ -4,7 +4,13 @@ CC=gcc
 TARGET=alexnet
 OBJDIR=./obj/
 SRC=./src/
-CLFAGS=-w -lm -lpthread 
+
+# AUGMENT: random horizontal flip on training batches (1/0). See src/train.c.
+AUGMENT ?= 1
+# OUT_LAYER: number of output classes (10 for CIFAR-10, 100 for CIFAR-100). See src/alexnet.h.
+OUT_LAYER ?= 10
+
+CLFAGS=-O2 -w -lm -lpthread -g -DAUGMENT=$(AUGMENT) -DOUT_LAYER=$(OUT_LAYER)
 
 LAYER_OBJ=activation_layer.o batchnorm_layer.o convolution_layer.o dropout_layer.o maxpooling_layer.o fc_layer.o
 LAYER_OBJS = $(addprefix $(OBJDIR), $(LAYER_OBJ))
@@ -36,6 +42,22 @@ $(LAYER_OBJS):
 
 all: $(OBJDIR) $(TARGET)
 
+single_conv: $(LAYER_OBJS) $(OBJDIR)data.o $(OBJDIR)matrix.o
+	$(CC) -O2 -o single_conv $(SRC)single_conv.c \
+		$(OBJDIR)data.o $(OBJDIR)convolution_layer.o $(OBJDIR)matrix.o \
+		-I$(SRC) $(CLFAGS)
+
+single_fc: $(LAYER_OBJS) $(OBJDIR)data.o $(OBJDIR)matrix.o
+	$(CC) -O2 -o single_fc $(SRC)single_fc.c \
+		$(OBJDIR)data.o $(OBJDIR)fc_layer.o $(OBJDIR)matrix.o \
+		-I$(SRC) $(CLFAGS)
+
+$(OBJDIR)matrix.o:
+	$(CC) -o $(OBJDIR)matrix.o -c $(SRC)matrix.c $(CLFAGS)
+
+$(OBJDIR)data.o:
+	$(CC) -o $(OBJDIR)data.o -c $(SRC)data.c $(CLFAGS)
+
 
 clean: 
-	rm -rf $(OBJDIR) $(TARGET)
+	rm -rf $(OBJDIR) $(TARGET) single_conv single_fc

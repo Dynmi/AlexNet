@@ -25,10 +25,12 @@ void make_image(image *img, int w, int h, int c)
      * Output:
      *      img
      * */
+    // printf("entering make_image\n");
     img->w = w;
     img->h = h;
     img->c = c;
     img->data = (float *)malloc(h*w*c * sizeof(float));
+    // printf("malloc completed, no segmetation fault in make_image function\n");
 }
 
 void free_image(image *img)
@@ -69,7 +71,7 @@ void horizontal_flip(image *im)
         {
             register int st_idx = y * im->w + z * im->w * im->h;
             for (short x = 0; x < im->w; x++)
-                tmp[st_idx+x] = im->data[st_idx+im->w-x];
+                tmp[st_idx+x] = im->data[st_idx+im->w-1-x];
         }
     }
     memcpy(im->data, tmp, im->w * im->h * im->c * sizeof(float));
@@ -78,6 +80,8 @@ void horizontal_flip(image *im)
 
 void resize_image(image *im, int w, int h)
 {
+    //here im->h and im->c express the original dims of the image, 
+    //while through passing values w,h are the wanted by the network
     image resized, part;
     make_image(&resized, w, h, im->c);
     make_image(&part,  w, im->h, im->c);
@@ -118,10 +122,21 @@ void resize_image(image *im, int w, int h)
         }
     }
 
-    memcpy(im, &resized, sizeof(image));
+    // memcpy(im, &resized, sizeof(image)); //this cause segmentation fault
+
+    free(im->data);      // free the original allocation before overwriting the pointer
+    im->w = resized.w;
+    im->h = resized.h;
+    im->c = resized.c;
+    im->data = resized.data;
+    resized.data = NULL;
+
     free_image(&part);
     free_image(&resized);
 }
+
+static int g_augment = 0;
+void dataset_set_augment(int on) { g_augment = on; }
 
 image load_image(char *filename, int W, int H, int channels, int is_h_flip)
 {
@@ -163,14 +178,106 @@ image load_image(char *filename, int W, int H, int channels, int is_h_flip)
     }
     free(data);
 
-    if ((h&&w) && (H!=img.h || W!=img.w))
+    // printf("inside load image before resizing the image\n");
+    if ((h&&w) && (H!=img.h || W!=img.w)) {
+        // printf("this image needs resizing\n");
         resize_image(&img, H, W);
+    }
+        
     
-    if (is_h_flip)
+    if (is_h_flip) {
+        // printf("this image needs flipping\n");
         horizontal_flip(&img);
+    }
 
     return img;
 }
+
+
+void get_next_batch(int n, float *X, int *Y, 
+                        int w, int h, int c, int CLASSES, FILE *fp)
+{
+    /**
+     * sample next batch of data for training model
+     * 
+     * Input:
+     *      n
+     *      w, h, c
+     *      CLASSES
+     *      fp
+     * Output:
+     *      X   [n,c,h,w]
+     *      Y   [n]
+     * */
+    // printf("entering get_next_batch\n");
+    image img;
+    int label,idx;
+    char imgpath[256];
+    int imagesize = w*h*c;
+    for(int i=0; i<n; i++)
+    {
+        if (fscanf(fp, "%d %s", &label, imgpath) != 2) { //if it reads something that is not image the rewind
+            rewind(fp);
+            if (fscanf(fp, "%d %s", &label, imgpath) != 2) {
+                fprintf(stderr, "Error: images.list is empty or unreadable\n");
+                break;
+            }
+        }
+
+        Y[i] = label;
+        img = load_image(imgpath, w, h, c, g_augment ? (rand() & 1) : 0);
+        memcpy(X+i*imagesize, img.data, imagesize*sizeof(float));
+        free_image(&img);   // free each image after copying its data
+    }
+
+}
+
+
+
+void get_same_batch(int n, float *X, int *Y, 
+                        int w, int h, int c, int CLASSES, FILE *fp)
+{
+    /**
+     * sample next batch of data for training model
+     * 
+     * Input:
+     *      n
+     *      w, h, c
+     *      CLASSES
+     *      fp
+     * Output:
+     *      X   [n,c,h,w]
+     *      Y   [n]
+     * */
+    // printf("entering get_next_batch\n");
+    image img;
+    int label,idx;
+    char imgpath[256];
+    int imagesize = w*h*c;
+    rewind(fp);
+    for(int i=0; i<n; i++)
+    {
+        if (fscanf(fp, "%d %s", &label, imgpath) != 2) { //if it reads something that is not image the rewind
+            rewind(fp);
+            if (fscanf(fp, "%d %s", &label, imgpath) != 2) {
+                fprintf(stderr, "Error: images.list is empty or unreadable\n");
+                break;
+            }
+        }
+
+        Y[i] = label;
+        img = load_image(imgpath, w, h, c, 0);
+        memcpy(X+i*imagesize, img.data, imagesize*sizeof(float));
+        free_image(&img);   // free each image after copying its data
+    }
+
+}
+
+
+
+
+
+
 
 
 void get_random_batch(int n, float *X, int *Y, 
@@ -205,37 +312,4 @@ void get_random_batch(int n, float *X, int *Y,
         Y[i] = label;
     }
     free_image(&img);
-}
-
-void get_next_batch(int n, float *X, int *Y, 
-                        int w, int h, int c, int CLASSES, FILE *fp)
-{
-    /**
-     * sample next batch of data for training model
-     * 
-     * Input:
-     *      n
-     *      w, h, c
-     *      CLASSES
-     *      fp
-     * Output:
-     *      X   [n,c,h,w]
-     *      Y   [n]
-     * */
-    image img; 
-    make_image(&img, w, h, c);
-    int label,idx;
-    char imgpath[256];
-    int imagesize = w*h*c;
-    for(int i=0; i<n; i++)
-    {
-        if(feof(fp)) 
-            rewind(fp);
-        fscanf(fp, "%d %s", &label, imgpath);
-
-        Y[i] = label;
-        img = load_image(imgpath, w, h, c, 0);
-        memcpy(X+i*imagesize, img.data, imagesize*sizeof(float));
-    }
-
 }

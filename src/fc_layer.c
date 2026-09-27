@@ -53,7 +53,7 @@ static void* pthread_fc_op_forward(void *argv)
 
 void fc_op_forward(fc_op *op)
 {
-    short tnum = 12; // number of threads
+    short tnum = 8; // number of threads
     if (op->out_units < tnum)
     {
         fc_args args;
@@ -65,16 +65,19 @@ void fc_op_forward(fc_op *op)
         fc_args args[tnum+1];
         pthread_t tid[tnum+1];
         short internal = ceil(1.0 * op->out_units / tnum);
+        short actual_threads = 0;
     
         for (int p = 0; p < tnum; p++)
         {
             args[p].op = op;
             args[p].st_tunits = p*internal;
-            args[p].ed_tunits = MIN(args[p].st_tunits+internal, op->out_units);            
+            args[p].ed_tunits = MIN(args[p].st_tunits+internal, op->out_units);
+            if (args[p].st_tunits >= op->out_units) break;
+            actual_threads++;
             pthread_create(&tid[p], NULL, pthread_fc_op_forward, (void *)(&args[p]));
         }
 
-        for (int p = 0; p < tnum; p++)
+        for (int p = 0; p < actual_threads; p++)
             pthread_join(tid[p], NULL);
     }
 
@@ -88,36 +91,45 @@ static void* pthread_fc_op_backward(void *argv)
     fc_args args;
     memcpy(&args, (fc_args *)argv, sizeof(fc_args));
 
-    register int w_offset=0;
     if (args.st_tunits == 0)
     {
-        // calculate delta_bias and delta_input
+        // calculate delta_input per sample
+        // weights layout: W[in_units, out_units], W[i][j] = weights[i * out_units + j]
+        for (int p = 0; p < args.op->batchsize; p++)
+        {
+            for (register int j = 0; j < args.op->out_units; j++)
+            {
+                register float d_o = args.op->d_output[p * args.op->out_units + j];
+                for (register int i = 0; i < args.op->in_units; i++)
+                {
+                    args.op->d_input[p * args.op->in_units + i] += args.op->weights[i * args.op->out_units + j] * d_o;
+                }
+            }
+        }
+        // calculate delta_bias averaged across batch
         for (register int j = 0; j < args.op->out_units; j++)
         {
-            register float d_o = args.op->d_output[j];
-            for (register int i = 0; i < args.op->in_units; i++, w_offset++)
-            {
-                args.op->d_input[i] += args.op->weights[w_offset] * d_o;
-            }
-            args.op->d_bias[j] = d_o;
+            register float sum = 0.0f;
+            for (int p = 0; p < args.op->batchsize; p++)
+                sum += args.op->d_output[p * args.op->out_units + j];
+            args.op->d_bias[j] = sum / args.op->batchsize;
         }
     }
  
     register float *w_deltas  = args.op->d_weights;
     for (int i = args.st_tunits; i < args.ed_tunits; i++)
     {
-        register float oe = args.op->d_output[i];
-        if (oe < 0.0008)
-            continue;
-
         register float *input = args.op->input;
+        // d_weights layout must match weights: W[k][i] = d_weights[k * out_units + i]
         for (int p = 0; p < args.op->batchsize; p++)
         {
-            w_offset = i * (args.op->in_units);
-            register int w_o_bound = w_offset + args.op->in_units;
-            while (w_offset < w_o_bound)
+            register float oe = args.op->d_output[p * args.op->out_units + i];
+            if (fabsf(oe) < 1e-9f)
+                continue;
+
+            for (int k = 0; k < args.op->in_units; k++)
             {
-                w_deltas[w_offset++] += oe * (*(input++)) / args.op->batchsize;
+                w_deltas[k * args.op->out_units + i] += oe * input[p * args.op->in_units + k] / args.op->batchsize;
             }
         }
     }
@@ -125,7 +137,7 @@ static void* pthread_fc_op_backward(void *argv)
 
 void fc_op_backward(fc_op *op)
 {
-    short tnum = 12; // number of threads
+    short tnum = 8; // number of threads
     if (op->out_units < tnum) {
         fc_args args;
         args.op = op;
@@ -136,16 +148,19 @@ void fc_op_backward(fc_op *op)
         fc_args args[tnum+1];
         pthread_t tid[tnum+1];
         short internal = ceil(1.0 * op->out_units / tnum);
+        short actual_threads = 0;
 
         for (int p = 0; p < tnum; p++)
         {
             args[p].op = op;
             args[p].st_tunits = p*internal;
-            args[p].ed_tunits = MIN(args[p].st_tunits+internal, op->out_units);            
+            args[p].ed_tunits = MIN(args[p].st_tunits+internal, op->out_units);
+            if (args[p].st_tunits >= op->out_units) break;
+            actual_threads++;
             pthread_create(&tid[p], NULL, pthread_fc_op_backward, (void *)(&args[p]));
         }
 
-        for (int p = 0; p < tnum; p++)
+        for (int p = 0; p < actual_threads; p++)
             pthread_join(tid[p], NULL);
     }
 
