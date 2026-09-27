@@ -52,7 +52,7 @@ static void* pthread_mp_op_forward(void *argv)
                 {
                     for (register int fy=j; fy<MIN(j+pool_size,mp.op->in_h); fy++)
                     {                        
-                        pixel = MAX(pixel, input[fx*mp.op->in_h+fy]);
+                        pixel = MAX(pixel, input[fx + fy * mp.op->in_w + c*iwih]);
                     }
                 }
                 output_offset = o_x + o_y*(mp.op->out_w) + c*owoh;
@@ -110,6 +110,7 @@ void max_pooling_op_backward(max_pooling_op *op)
                     max_value = -1111111;
                     while ( x < MIN((i + 1) * pool_size, in_w) )
                     {
+                        y = j * pool_size;  // reset y for each row
                         while ( y < MIN((j + 1) * pool_size, in_h) )
                         {
                             cur_value = op->input[p*channels*iwih + c*iwih + y*in_w + x];
@@ -124,9 +125,9 @@ void max_pooling_op_backward(max_pooling_op *op)
                         x++;
                     }
                     
-                    in_shift  = c*iwih + in_y*in_w + in_x;
-                    out_shift = c*owoh + j*out_w + i;
-                    op->d_input[in_shift] += op->d_output[out_shift] / op->batchsize;
+                    in_shift  = p*channels*iwih + c*iwih + in_y*in_w + in_x;
+                    out_shift = p*channels*owoh + c*owoh + j*out_w + i;
+                    op->d_input[in_shift] += op->d_output[out_shift];
                 }
             }
         }

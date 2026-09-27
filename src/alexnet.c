@@ -120,6 +120,14 @@ int argmax(float *arr, int n)
      * Return:
      *      the index of max-value
      * */ 
+    
+    
+     /*        for (int i = 0; i < net->batchsize; i++)
+                    preds[i] = argmax(net->output + i * net->fc3.out_units, net->fc3.out_units);
+    */
+
+    //
+    
     int   idx = -1;
     float max = -1111111111;
     for (int p = 0; p<n; p++)
@@ -137,6 +145,8 @@ int argmax(float *arr, int n)
 
 static struct timespec start, finish; 
 static float duration;
+
+
 void forward_alexnet(alexnet *net)
 {
     net->conv1.input = net->input;
@@ -145,6 +155,7 @@ void forward_alexnet(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
+    printf("%d\n", net->batchsize);
     net->conv1.output = (float *)calloc(net->batchsize * net->conv1.out_units, sizeof(float));
     conv_op_forward(&(net->conv1));
 #ifdef SHOW_OP_TIME
@@ -157,6 +168,7 @@ void forward_alexnet(alexnet *net)
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
+    printf("%d\n", net->batchsize);
     net->bn1.output = (float *)malloc(net->batchsize * sizeof(float) * net->bn1.units);
     net->bn1.input = net->conv1.output;
     batch_norm_op_forward(&(net->bn1));
@@ -308,7 +320,11 @@ void forward_alexnet(alexnet *net)
     max_pooling_op_forward(&(net->mp5));
 
 
-    dropout(net->mp5.output, DROPOUT_PROB, net->mp5.batchsize * net->mp5.out_units);
+    net->do1_mask = (float *)malloc(net->batchsize * net->mp5.out_units * sizeof(float));
+    if (net->is_training)
+        dropout_forward(net->mp5.output, net->do1_mask, DROPOUT_PROB, net->batchsize * net->mp5.out_units);
+    else
+        for (int i = 0; i < net->batchsize * net->mp5.out_units; i++) net->do1_mask[i] = 1.0f;
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -327,13 +343,17 @@ void forward_alexnet(alexnet *net)
     net->relu6.input = net->fc1.output;
     relu_op_forward(&(net->relu6));
 
-    dropout(net->relu6.output, DROPOUT_PROB, net->relu6.batchsize * net->relu6.units);
+    net->do2_mask = (float *)malloc(net->batchsize * net->relu6.units * sizeof(float));
+    if (net->is_training)
+        dropout_forward(net->relu6.output, net->do2_mask, DROPOUT_PROB, net->batchsize * net->relu6.units);
+    else
+        for (int i = 0; i < net->batchsize * net->relu6.units; i++) net->do2_mask[i] = 1.0f;
 
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
     net->fc2.output = (float *)calloc(net->batchsize * net->fc2.out_units, sizeof(float));
-    net->fc2.input = net->fc1.output;
+    net->fc2.input = net->relu6.output;
     fc_op_forward(&(net->fc2));
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &finish);
@@ -359,7 +379,7 @@ void forward_alexnet(alexnet *net)
     clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
     net->fc3.output = (float *)calloc(net->batchsize * net->fc3.out_units, sizeof(float));
-    net->fc3.input = net->fc2.output;
+    net->fc3.input = net->relu7.output;
     fc_op_forward(&(net->fc3));
 #ifdef SHOW_OP_TIME
     clock_gettime(CLOCK_MONOTONIC, &finish);
@@ -369,6 +389,60 @@ void forward_alexnet(alexnet *net)
 #endif
 
     net->output = net->fc3.output;
+}
+
+
+void free_forward_activations(alexnet *net)
+{
+    /**
+     * Free all heap buffers allocated by forward_alexnet.
+     * Must be called after each forward pass when NOT followed by backward_alexnet
+     * (which already frees these buffers itself).
+     */
+    free(net->conv1.output);  net->conv1.output = NULL;
+    free(net->bn1.output);    net->bn1.output   = NULL;
+    free(net->relu1.output);  net->relu1.output  = NULL;
+    free(net->mp1.output);    net->mp1.output    = NULL;
+
+    free(net->conv2.output);  net->conv2.output = NULL;
+    free(net->bn2.output);    net->bn2.output   = NULL;
+    free(net->relu2.output);  net->relu2.output  = NULL;
+    free(net->mp2.output);    net->mp2.output    = NULL;
+
+    free(net->conv3.output);  net->conv3.output = NULL;
+    free(net->bn3.output);    net->bn3.output   = NULL;
+    free(net->relu3.output);  net->relu3.output  = NULL;
+
+    free(net->conv4.output);  net->conv4.output = NULL;
+    free(net->bn4.output);    net->bn4.output   = NULL;
+    free(net->relu4.output);  net->relu4.output  = NULL;
+
+    free(net->conv5.output);  net->conv5.output = NULL;
+    free(net->bn5.output);    net->bn5.output   = NULL;
+    free(net->relu5.output);  net->relu5.output  = NULL;
+    free(net->mp5.output);    net->mp5.output    = NULL;
+
+    free(net->do1_mask);      net->do1_mask      = NULL;
+    free(net->fc1.output);    net->fc1.output   = NULL;
+    free(net->relu6.output);  net->relu6.output  = NULL;
+    free(net->do2_mask);      net->do2_mask      = NULL;
+    free(net->fc2.output);    net->fc2.output   = NULL;
+    free(net->relu7.output);  net->relu7.output  = NULL;
+    free(net->fc3.output);    net->fc3.output   = NULL;
+    net->output = NULL;
+
+    /* also free the batchnorm x_norm/var that forward allocates */
+    /* (batch_norm_op_backward frees these during training; here we must do it) */
+    free(net->bn1.x_norm);  net->bn1.x_norm = NULL;
+    free(net->bn2.x_norm);  net->bn2.x_norm = NULL;
+    free(net->bn3.x_norm);  net->bn3.x_norm = NULL;
+    free(net->bn4.x_norm);  net->bn4.x_norm = NULL;
+    free(net->bn5.x_norm);  net->bn5.x_norm = NULL;
+    free(net->bn1.var);     net->bn1.var    = NULL;
+    free(net->bn2.var);     net->bn2.var    = NULL;
+    free(net->bn3.var);     net->bn3.var    = NULL;
+    free(net->bn4.var);     net->bn4.var    = NULL;
+    free(net->bn5.var);     net->bn5.var    = NULL;
 }
 
 
@@ -479,6 +553,10 @@ void load_alexnet(alexnet *net, char *filename)
      * load weights of network from file
      * */
     FILE *fp = fopen(filename, "rb");
+    if (fp == NULL) {
+        fprintf(stderr, "Error: Cannot open weights file \"%s\"\n", filename);
+        exit(1);
+    }
     load_conv_weights(&(net->conv1), fp);
     load_conv_weights(&(net->conv2), fp);
     load_conv_weights(&(net->conv3), fp);
@@ -503,6 +581,7 @@ void setup_alexnet(alexnet *net, short batchsize)
      * initialize alexnet
      * */
     net->batchsize = batchsize;
+    printf("batchsize in setup\n");
     net->conv1.batchsize = batchsize;
     net->conv2.batchsize = batchsize;
     net->conv3.batchsize = batchsize;
@@ -539,13 +618,17 @@ void setup_alexnet(alexnet *net, short batchsize)
     net->conv1.in_units = IN_CHANNELS*FEATURE0_L*FEATURE0_L;
     net->conv1.out_units = C1_CHANNELS*FEATURE1_L*FEATURE1_L;
 
-    net->bn1.units = net->conv1.out_units;
+    net->bn1.units        = net->conv1.out_units;
+    net->bn1.channels     = C1_CHANNELS;
+    net->bn1.spatial_size = FEATURE1_L * FEATURE1_L;
 
     net->relu1.units = net->bn1.units;
     
     net->mp1.channels = C1_CHANNELS;
-    net->mp1.stride = 2;
-    net->mp1.kernel_size = 3;
+    net->mp1.stride = 2; //max pooling stride
+    net->mp1.kernel_size = 2;
+    // net->mp1.kernel_size = 3;
+
     net->mp1.in_h = FEATURE1_L;
     net->mp1.in_w = FEATURE1_L;
     net->mp1.out_w = POOLING1_L;
@@ -565,13 +648,15 @@ void setup_alexnet(alexnet *net, short batchsize)
     net->conv2.in_units = net->mp1.out_units;
     net->conv2.out_units = C2_CHANNELS*FEATURE2_L*FEATURE2_L;
 
-    net->bn2.units = net->conv2.out_units;
+    net->bn2.units        = net->conv2.out_units;
+    net->bn2.channels     = C2_CHANNELS;
+    net->bn2.spatial_size = FEATURE2_L * FEATURE2_L;
 
     net->relu2.units = net->bn2.units;
 
     net->mp2.channels = C2_CHANNELS;
     net->mp2.stride = 2;
-    net->mp2.kernel_size = 3;
+    net->mp2.kernel_size = 2;
     net->mp2.in_h = FEATURE2_L;
     net->mp2.in_w = FEATURE2_L;
     net->mp2.out_w = POOLING2_L;
@@ -591,7 +676,9 @@ void setup_alexnet(alexnet *net, short batchsize)
     net->conv3.in_units = net->mp2.out_units;
     net->conv3.out_units = C3_CHANNELS*FEATURE3_L*FEATURE3_L;
 
-    net->bn3.units = net->conv3.out_units;
+    net->bn3.units        = net->conv3.out_units;
+    net->bn3.channels     = C3_CHANNELS;
+    net->bn3.spatial_size = FEATURE3_L * FEATURE3_L;
 
     net->relu3.units = net->bn3.units;
 
@@ -607,7 +694,9 @@ void setup_alexnet(alexnet *net, short batchsize)
     net->conv4.in_units = net->relu3.units;
     net->conv4.out_units = C4_CHANNELS*FEATURE4_L*FEATURE4_L;
 
-    net->bn4.units = net->conv4.out_units;
+    net->bn4.units        = net->conv4.out_units;
+    net->bn4.channels     = C4_CHANNELS;
+    net->bn4.spatial_size = FEATURE4_L * FEATURE4_L;
 
     net->relu4.units = net->bn4.units;
 
@@ -623,13 +712,15 @@ void setup_alexnet(alexnet *net, short batchsize)
     net->conv5.in_units = net->relu4.units;
     net->conv5.out_units = C5_CHANNELS*FEATURE5_L*FEATURE5_L;
 
-    net->bn5.units = net->conv5.out_units;
+    net->bn5.units        = net->conv5.out_units;
+    net->bn5.channels     = C5_CHANNELS;
+    net->bn5.spatial_size = FEATURE5_L * FEATURE5_L;
 
     net->relu5.units = net->bn5.units;
 
     net->mp5.channels = C5_CHANNELS;
     net->mp5.stride = 2;
-    net->mp5.kernel_size = 3;
+    net->mp5.kernel_size = 2;
     net->mp5.in_h = FEATURE5_L;
     net->mp5.in_w = FEATURE5_L;
     net->mp5.out_w = POOLING5_L;
@@ -688,22 +779,22 @@ void alexnet_init_weights(alexnet *net, char *weights_path)
     for(i=0; i<OUT_LAYER; i++)
         net->fc3.bias[i] = 1;
 
-    for(i=0; i<(net->bn1.units); i++)
+    for(i=0; i<(net->bn1.channels); i++)
         net->bn1.gamma[i] = 1;
-    for(i=0; i<(net->bn2.units); i++)
+    for(i=0; i<(net->bn2.channels); i++)
         net->bn2.gamma[i] = 1;
-    for(i=0; i<(net->bn3.units); i++)
+    for(i=0; i<(net->bn3.channels); i++)
         net->bn3.gamma[i] = 1;
-    for(i=0; i<(net->bn4.units); i++)
+    for(i=0; i<(net->bn4.channels); i++)
         net->bn4.gamma[i] = 1;
-    for(i=0; i<(net->bn5.units); i++)
+    for(i=0; i<(net->bn5.channels); i++)
         net->bn5.gamma[i] = 1;
     
-    memset(net->bn1.beta, 0, sizeof(float)*(net->bn1.units));
-    memset(net->bn2.beta, 0, sizeof(float)*(net->bn2.units));
-    memset(net->bn3.beta, 0, sizeof(float)*(net->bn3.units));
-    memset(net->bn4.beta, 0, sizeof(float)*(net->bn4.units));
-    memset(net->bn5.beta, 0, sizeof(float)*(net->bn5.units));
+    memset(net->bn1.beta, 0, sizeof(float)*(net->bn1.channels));
+    memset(net->bn2.beta, 0, sizeof(float)*(net->bn2.channels));
+    memset(net->bn3.beta, 0, sizeof(float)*(net->bn3.channels));
+    memset(net->bn4.beta, 0, sizeof(float)*(net->bn4.channels));
+    memset(net->bn5.beta, 0, sizeof(float)*(net->bn5.channels));
 }
 
 
@@ -747,8 +838,11 @@ int main(int argc, char* argv[])
 
         printf("batch size: %d \n", batchsize);
         printf("epochs: %d \n", epochs);
+        printf("net: %p\n", &net);
         setup_alexnet(&net, batchsize);
-        malloc_alexnet(&net);    
+        printf("setup finished\n");
+        malloc_alexnet(&net);
+        printf("allocation of net struct\n"); 
         if (is_load) {
             alexnet_init_weights(&net, weights_in_path);
         }else {
@@ -777,7 +871,31 @@ int main(int argc, char* argv[])
         malloc_alexnet(&net);    
         alexnet_init_weights(&net, weights_path);
         printf("alexnet setup fininshed. Waiting for inference...\n");
-        alexnet_inference(&net, argv[2]);
+        alexnet_inference(&net, img_path);
+        //alexnet_inference(&net, argv[2]);
+        free_alexnet(&net);
+    }else if (0 == strcmp(argv[1], "test"))
+    {
+        //
+        // $./alexnet test -batchsize 4 -load ./a1.weights
+        //
+        int   batchsize = 8;
+        short is_load = 0;
+        char  weights_path[256];
+        for (int i = 2; i < argc-1; i++)
+        {
+            if (0 == strcmp(argv[i], "-batchsize"))
+                sscanf(argv[i+1], "%d", &batchsize);
+            if (0 == strcmp(argv[i], "-load"))
+            {
+                is_load = 1;
+                sprintf(weights_path, "%s", argv[i+1]);
+            }
+        }
+        setup_alexnet(&net, batchsize);
+        malloc_alexnet(&net);
+        alexnet_init_weights(&net, is_load ? weights_path : NULL);
+        alexnet_test(&net);
         free_alexnet(&net);
     }else {
         printf("Error: Unknown argument!!! \n");

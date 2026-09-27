@@ -5,7 +5,9 @@
 //
 #include <stdlib.h>
 #include <string.h>
-#include <immintrin.h>
+// #include <immintrin.h> 
+
+// I REMOVED IT, BECAUSE IT IS FOR X86 ASSEMBLY
 
 /*
 // 
@@ -76,9 +78,12 @@ void matrix_multiply(const float *a, const float *b, float *c, const int M, cons
         for (j = 0; j < N; j++)
         {
             register float apart = *(a_ptr++);
-            if (apart<0.00001 && apart>(0-0.00001))
+            if (apart<0.00001 && apart>(0-0.00001)) //masking for vector processing
+            {
+                b_ptr += K;
                 continue;
-            register float *c_ptr = c + i*K;
+            }
+            register float *c_ptr = c + i*K; //reset
             for (p = 0; p < K; p++)
                 *(c_ptr++) += *(b_ptr++) * apart;
         }

@@ -15,6 +15,8 @@ typedef struct batch_norm_op {
     float *beta; float *d_beta;
 
     int units;
+    int channels;
+    int spatial_size;
     short batchsize;
     
     float *x_norm;
@@ -25,11 +27,11 @@ typedef struct batch_norm_op {
 void batch_norm_op_forward(batch_norm_op *op);
 void batch_norm_op_backward(batch_norm_op *op);
 
-inline void calloc_batchnorm_weights(batch_norm_op *op);
-inline void free_batchnorm_weights(batch_norm_op *op);
+void calloc_batchnorm_weights(batch_norm_op *op);
+void free_batchnorm_weights(batch_norm_op *op);
 
-inline void calloc_batchnorm_dweights(batch_norm_op *op);
-inline void free_batchnorm_dweights(batch_norm_op *op);
+void calloc_batchnorm_dweights(batch_norm_op *op);
+void free_batchnorm_dweights(batch_norm_op *op);
 
-inline void load_batchnorm_weights(batch_norm_op *op, FILE *fp);
-inline void save_batchnorm_weights(batch_norm_op *op, FILE *fp);
+void load_batchnorm_weights(batch_norm_op *op, FILE *fp);
+void save_batchnorm_weights(batch_norm_op *op, FILE *fp);
